@@ -1,0 +1,6 @@
+python -m venv venv
+pip install fastapi uvicorn
+pip install python-multipart
+pip install pydantic
+pip install python-dotenv
+pip install pymongo
