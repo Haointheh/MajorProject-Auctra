@@ -1,2 +1,4 @@
 react
-testing pull changes. 
+install tailwindcss
+npm install @fontsource/jost react-icons
+
