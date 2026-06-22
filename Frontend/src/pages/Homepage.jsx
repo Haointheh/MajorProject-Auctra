@@ -2,6 +2,7 @@ import React from 'react'
 import Button from '../ui/Button'
 import CardType2 from '../ui/CardType2'
 import ceramics from '../assets/ceramics.jpg'
+import handicraft from '../assets/handicraft.jpg'
 
 const categories = ['Art', 'Vehicles', 'Jewellery', 'Vintage']
 
@@ -74,12 +75,21 @@ export default function Homepage() {
   tag="Hot"
 />
 
+
+
+<CardType2
+  title="Handicrafts"
+  description="Crafts into your Heart"
+  imageUrl={handicraft}
+/>
+
 <CardType2
   title="Vintage Watch"
   description="Rare 1960s Rolex in mint condition"
   imageUrl="/images/watch.jpg"
   tag="Hot"
 />
+
           </div>
 
           <div className="mt-8 text-center">

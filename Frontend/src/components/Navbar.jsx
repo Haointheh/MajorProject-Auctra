@@ -1,12 +1,16 @@
 import React, { useState } from "react";
 import Button from "../ui/Button";
 import AuthModal from "../auth/AuthModal";
-import logo from "../assets/auctra_logo.svg";
+import logo from "../assets/auctra_logo-cropped.svg";
 import { CiSearch } from "react-icons/ci";
+import { useAuthStore } from "../store/useAuthStore";
+import { useSignupStore } from "../store/useSignupStore";
 
-const categories = ["Art", "Vehicles", "Jewellery", "Vintage", "Browse all"];
+const categories = ["Art", "Fashion", "Jewellery", "Antiques", "Handicrafts", "Browse all"];
 
 export default function Navbar() {
+  const { isAuthenticated, logout } = useAuthStore();
+  const { resetForm } = useSignupStore();
   const [showAuth, setShowAuth] = useState(false);
   const [initialMode, setInitialMode] = useState("login");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -17,15 +21,23 @@ export default function Navbar() {
   };
 
   const openSignup = () => {
+    resetForm();
     setInitialMode("signup");
     setShowAuth(true);
+  };
+
+  const handleLogout = () => {
+    logout();
+    setShowAuth(false);
   };
 
   return (
     <nav className="border-b border-slate-300 bg-white relative">
 
       {/* ================= TOP BAR ================= */}
-      <div className="grid grid-cols-3 items-center px-4 lg:px-8 py-2 border-b border-neutral1">
+      {/* <div className="grid grid-cols-3 items-center px-4 lg:px-8 py-2 border-b border-neutral1"> */}
+
+      <div className="flex justify-between items-center px-4 lg:px-8 py-2 border-b border-neutral1">
 
         {/* Mobile Menu Button */}
         <button
@@ -45,27 +57,35 @@ export default function Navbar() {
         </div>
 
         {/* Search (Desktop) */}
-        <div className="hidden lg:flex justify-center">
+        {/* <div className="hidden lg:flex justify-center">
           <SearchBar />
-        </div>
+        </div> */}
 
         {/* Auth Buttons (Desktop) */}
         <div className="hidden lg:flex justify-end gap-4">
-          <Button variant="blank" onClick={openLogin}>
-            Log In
-          </Button>
-          <Button variant="secondary" onClick={openSignup}>
-            Join
-          </Button>
+          {isAuthenticated ? (
+            <Button variant="secondary" onClick={handleLogout}>
+              Log Out
+            </Button>
+          ) : (
+            <>
+              <Button variant="blank" onClick={openLogin}>
+                Log In
+              </Button>
+              <Button variant="secondary" onClick={openSignup}>
+                Join
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Mobile search bar inside menu */}
-      {menuOpen && (
+      {/* {menuOpen && (
         <div className="lg:hidden px-4 pb-4">
           <SearchBar />
         </div>
-      )}
+      )} */}
 
       {/* ================= DESKTOP SUB NAV ================= */}
       <div className="hidden lg:flex items-center justify-between px-8 py-2">
