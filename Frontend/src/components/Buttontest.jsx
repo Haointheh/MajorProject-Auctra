@@ -1,32 +1,36 @@
 import React from 'react'
-import Button from './Button'
+import Button from '../ui/Button'
 
 const ButtonTest = () => {
   return (
     
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem' }}>
-        <Button variant="primaryBorder" size="small" onClick={() => console.log('Primary Border Small clicked')}>
+        // <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', padding: '1rem' }}>
+        <div className="space-x-1.5 space-y-1.5">
+        <Button variant="primaryBorder" size="sm" onClick={() => console.log('Primary Border Small clicked')}>
           Primary Border Small
         </Button>
-        <Button variant="primaryBorder" size="large" onClick={() => console.log('Primary Border Large clicked')}>
+        <Button variant="primaryBorder" size="lg" onClick={() => console.log('Primary Border Large clicked')}>
           Primary Border Large
         </Button>
-        <Button variant="secondaryBorder" size="small" onClick={() => console.log('Secondary Border Small clicked')}>
+        <Button variant="secondaryBorder" size="sm" onClick={() => console.log('Secondary Border Small clicked')}>
           Secondary Border Small
         </Button>
-        <Button variant="secondaryBorder" size="large" onClick={() => console.log('Secondary Border Large clicked')}>
+        <Button variant="secondaryBorder" size="lg" onClick={() => console.log('Secondary Border Large clicked')}>
           Secondary Border Large
         </Button>
-        <Button variant="primary" size="medium" onClick={() => console.log('Primary Medium clicked')}>
+        <Button variant="primary" size="md" onClick={() => console.log('Primary Medium clicked')}>
           Primary Medium
         </Button>
-        <Button variant="secondary" size="medium" onClick={() => console.log('Secondary Medium clicked')}>
+        <Button variant="secondary" size="md" onClick={() => console.log('Secondary Medium clicked')}>
           Secondary Medium
         </Button>
-        <Button variant="blank" size="medium" onClick={() => console.log('Blank Medium clicked')}>
+        <Button variant="blank" size="md" onClick={() => console.log('Blank Medium clicked')}>
           Blank Medium
         </Button>  
-        <Button variant="blank" size="small">Log In</Button>  
+        <Button variant="blank" size="sm">Log In</Button>  
+        <Button variant="secondary" size="xs">
+  Place Bid
+</Button>
     </div>
   )
 }

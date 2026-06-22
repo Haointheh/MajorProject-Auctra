@@ -38,7 +38,9 @@ export default function Navbar() {
         {/* Logo */}
         <div className="flex justify-center lg:justify-start">
           <a href="/">
-            <img src={logo} alt="Auctra" className="h-10 lg:h-24 object-contain" />
+            <img src={logo}
+            alt="Auctra" 
+            className="h-16 sm:h-18 lg:h-24 object-contain" />
           </a>
         </div>
 
@@ -106,6 +108,7 @@ export default function Navbar() {
 
           <hr className="my-3" />
 
+<div className="flex gap-3">
           <Button variant="blank" onClick={openLogin}>
             Log In
           </Button>
@@ -113,6 +116,7 @@ export default function Navbar() {
           <Button variant="secondary" onClick={openSignup}>
             Join
           </Button>
+        </div>
         </div>
       )}
 
