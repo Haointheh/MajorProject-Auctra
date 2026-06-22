@@ -1,110 +1,155 @@
-import React, {useState} from 'react';
-import Button from './Button';
-import LoginForm from './LoginForm';
+import React, { useState } from "react";
+import Button from "../ui/Button";
+import AuthModal from "../auth/AuthModal";
+import logo from "../assets/auctra_logo.svg";
+import { CiSearch } from "react-icons/ci";
+
+const categories = ["Art", "Vehicles", "Jewellery", "Vintage", "Browse all"];
 
 export default function Navbar() {
-const [showLogin, setShowLogin] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [initialMode, setInitialMode] = useState("login");
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const openLogin = () => {
+    setInitialMode("login");
+    setShowAuth(true);
+  };
+
+  const openSignup = () => {
+    setInitialMode("signup");
+    setShowAuth(true);
+  };
 
   return (
-    <nav className="">
-      {/* Top Section */}
-      <div className="flex items-center justify-between px-8 pt-4">
-        {/* LOGO */}
-        <a href="/" className="flex items-center gap-2">
-          <img 
-            src="./src/assets/auctra_logo.svg" 
-            alt="Auctra Logo"  
-            className="w-26 h-26 object-contain"
-          />
-        </a>
+    <nav className="border-b border-slate-300 bg-white relative">
 
-        {/* Search Bar */}
-        <div className="flex-1 max-w-md mx-12">
-          <div className="relative bg-slate-50">
-            <input
-              type="text"
-              placeholder="Search"
-              className="w-full border-slate-700 py-3 pl-12 pr-4 text-black placeholder-neutral-4 focus:ring-2 focus:ring-neutral5 focus:outline-none transition"
-            />
+      {/* ================= TOP BAR ================= */}
+      <div className="grid grid-cols-3 items-center px-4 lg:px-8 py-2 border-b border-neutral1">
 
-            <svg
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"
-              />
-            </svg>
-          </div>
+        {/* Mobile Menu Button */}
+        <button
+          className="lg:hidden"
+          onClick={() => setMenuOpen((prev) => !prev)}
+        >
+          <HamburgerIcon />
+        </button>
+
+        {/* Logo */}
+        <div className="flex justify-center lg:justify-start">
+          <a href="/">
+            <img src={logo} alt="Auctra" className="h-10 lg:h-24 object-contain" />
+          </a>
         </div>
 
-        {/* Right Side */}
-        <div className="flex items-center gap-6">
-          {/* Notification */}
-          {/* <button className="text-neutral3 hover:text-neutral7">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 17h5l-1.5-1.5A2.12 2.12 0 0118 14V11a6 6 0 10-12 0v3c0 .6-.2 1.2-.5 1.5L4 17h5m6 0a3 3 0 11-6 0h6z"
-              />
-            </svg>
-          </button> */}
+        {/* Search (Desktop) */}
+        <div className="hidden lg:flex justify-center">
+          <SearchBar />
+        </div>
 
-          {/* Profile Placeholder */}
-          {/* <div className="w-11 h-11 rounded-full border-2 border-slate-600 flex items-center justify-center cursor-pointer hover:border-slate-500">
-            <span className="text-neutral3 font-medium">
-              U
-            </span>
-          </div> */}
-
-          {/* <button className="text-neutral6 hover:text-neutral8">Log In</button> */}
-          <Button variant="blank" size="small" onClick={() => setShowLogin(true)}>
+        {/* Auth Buttons (Desktop) */}
+        <div className="hidden lg:flex justify-end gap-4">
+          <Button variant="blank" onClick={openLogin}>
             Log In
           </Button>
-          <Button variant="secondary" size="small">
+          <Button variant="secondary" onClick={openSignup}>
             Join
           </Button>
-
-          
         </div>
       </div>
 
-      {/* Bottom Navigation */}
-      <div className="px-8 pb-2 border-b border-slate-300">
-        <div className="flex items-center justify-center gap-6">
-          <button className="px-5 py-3 text-neutral3 hover:text-neutral7 rounded-lg transition">
-            Dashboard
-          </button>
-
-          <button className="px-5 py-3 text-neutral3 hover:text-neutral7 rounded-lg transition">
-            Team
-          </button>
-
-          <button className="px-5 py-3 text-neutral3 hover:text-neutral7 rounded-lg transition">
-            Projects
-          </button>
-
-          <button className="px-5 py-3 text-neutral3 hover:text-neutral7 rounded-lg transition">
-            Calendar
-          </button>
+      {/* Mobile search bar inside menu */}
+      {menuOpen && (
+        <div className="lg:hidden px-4 pb-4">
+          <SearchBar />
         </div>
+      )}
+
+      {/* ================= DESKTOP SUB NAV ================= */}
+      <div className="hidden lg:flex items-center justify-between px-8 py-2">
+        
+        {/* Categories */}
+        <div className="flex gap-2">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <a
+          href="#"
+          className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
+        >
+          View Current Auctions
+        </a>
       </div>
 
-       {showLogin && (
-        <LoginForm onClose={() => setShowLogin(false)} />
+      {/* ================= MOBILE MENU ================= */}
+      {menuOpen && (
+        <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-3">
+
+          <button className="text-left font-medium">
+            Current Auctions
+          </button>
+          <div className="flex gap-2">
+            {categories.map((cat)  => (
+              <button key={cat} className="text-left py-2 text-slate-700">
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <hr className="my-3" />
+
+          <Button variant="blank" onClick={openLogin}>
+            Log In
+          </Button>
+
+          <Button variant="secondary" onClick={openSignup}>
+            Join
+          </Button>
+        </div>
+      )}
+
+      {/* ================= AUTH MODAL ================= */}
+      {showAuth && (
+        <AuthModal
+          initialMode={initialMode}
+          onClose={() => setShowAuth(false)}
+        />
       )}
     </nav>
+  );
+}
+
+/* ================= ICONS ================= */
+
+function HamburgerIcon() {
+  return (
+    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
+function SearchBar() {
+  return (
+    <div className="relative w-full max-w-190 mx-auto">
+
+      {/* Input */}
+      <input
+        type="text"
+        placeholder="Search auctions..."
+        className="w-full bg-slate-50 border border-slate-300 py-3 pl-12 pr-4 focus:outline-none focus:ring-1 focus:ring-slate-400"
+      />
+
+      {/* Icon */}
+      <CiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xl" />
+    </div>
   );
 }
