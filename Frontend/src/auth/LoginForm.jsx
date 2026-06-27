@@ -2,12 +2,35 @@ import React, {useState} from 'react'
 import { MdClose } from "react-icons/md";
 import logo from "../assets/auctra_logo.svg";
 import Button from '../ui/Button';
+import {apiLogin} from '../api/auth'
+import {useAuthStore} from '../store/useAuthStore'
+
 
 const LoginForm = ({ onClose, switchToSignup, }) => {
-
+  const { setAuth } = useAuthStore();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   // const [visible, setVisible] = useState(true)  
   //  if (!visible) return null; //  removes component from UI
-
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await apiLogin({ email, password });
+      // /login returns { access_token, token_type }
+      // you need user info — either store what you have or call /me
+      setAuth({ email }, res.data.access_token);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   return (
     <div className="relative w-full max-w-xs sm:max-w-md md:max-w-lg bg-neutral1 p-6 sm:p-8 shadow-lg mx-4 sm:mx-0">
       <div className="flex justify-end hover:text-neutral6 cursor-pointer">
