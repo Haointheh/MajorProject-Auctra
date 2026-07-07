@@ -1,2 +1,0 @@
-http://localhost:8000/docs
-access token =eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0dXNlckBleGFtcGxlLmNvbSIsInJvbGUiOiJ1c2VyIiwiZXhwIjoxNzgxOTY4Mzc5fQ.Vpp3rFL2JEr7UyrYfXhTsWgxUpvZg4xesF6b7PqZisc
