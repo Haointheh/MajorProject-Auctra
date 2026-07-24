@@ -12,7 +12,7 @@ export default function LiveAuctionView({ auction, bids = [], role = "buyer" }) 
             {role === "admin" ? "Admin oversight" : "Live auction"}
           </p>
           <h2 className="mt-2 text-xl font-black text-slate-900">{auction.title}</h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600">{auction.description}</p>
+          <p className="mt-2 max-w-2xl text-sm text-slate-600 whitespace-pre-wrap">{auction.description}</p>
         </div>
         <div className="rounded-none border border-slate-200 bg-slate-50 px-4 py-3 text-right">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Current bid</p>

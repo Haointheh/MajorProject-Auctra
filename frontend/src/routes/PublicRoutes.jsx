@@ -5,6 +5,7 @@ import Homepage from "../pages/Homepage";
 import CategoryPage from "../pages/CategoryPage";
 import AuctionDetailPage from "../pages/AuctionDetailPage";
 import ProfilePage from "../pages/ProfilePage";
+import BidHistoryPage from "../pages/BidHistoryPage";
 
 function PublicLayout() {
   return (
@@ -24,6 +25,7 @@ export default function PublicRoutes() {
         <Route path="auctions/:category" element={<CategoryPage />} />
         <Route path="auctions/:category/:id" element={<AuctionDetailPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="profile/bids" element={<BidHistoryPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

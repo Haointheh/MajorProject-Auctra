@@ -40,20 +40,20 @@ function AdminGuard() {
   // if (!isAuthenticated) return <Navigate to="/" replace />;
   // if (!user?.is_admin && user?.role !== "admin") return <Navigate to="/" replace />;
   
-  // const {user } =useAuthStore();
-  // if (!user) {
-  //     return <Navigate to="/login" replace />;
-  // }
+  const {user } =useAuthStore();
+  if (!user) {
+      return <Navigate to="/login" replace />;
+  }
 
-  // if (user.role !== "admin") {
-  //     return <Navigate to="/" replace />;
-  // }
+  if (user.role !== "admin") {
+      return <Navigate to="/" replace />;
+  }
 
-  // return <Outlet />;
-  const { isAuthenticated, user } = useAuthStore();
-  if (!isAuthenticated) return <Navigate to="/" replace />;
-  if (!user?.is_admin && user?.role !== "admin") return <Navigate to="/" replace />;
   return <Outlet />;
+  // const { isAuthenticated, user } = useAuthStore();
+  // if (!isAuthenticated) return <Navigate to="/" replace />;
+  // if (!user?.is_admin && user?.role !== "admin") return <Navigate to="/" replace />;
+  // return <Outlet />;
 }
 
 export default function AdminRoutes() {

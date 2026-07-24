@@ -1,13 +1,14 @@
 // src/pages/seller/CreateAuction.jsx
 // Form fields match POST /auctions exactly: title, description, category,
 // condition, base_price, start_time, duration_days, images (1-5).
-// TODO: wire handleSubmit to client.post('/auctions', formData) with multipart/form-data.
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../ui/PageHeader";
 import Input from "../../ui/Input";
 import Button from "../../ui/Button";
+import { apiCreateAuction } from "../../api/auctions";
+import FileUploadBox from "../../ui/FileUploadBox";
 
 const CATEGORIES = ["art", "fashion", "jewellery", "antiques", "handicrafts"];
 const CONDITIONS = ["excellent", "good", "fair", "poor"];
@@ -26,16 +27,16 @@ export default function CreateAuction() {
     start_time: "",
     duration_days: "",
   });
-  const [images, setImages] = useState([]);
-  const [previews, setPreviews] = useState([]);
+  const [image, setImage] = useState(null);     //do array for multiple ([])
+  // const [previews, setPreviews] = useState([]);
 
   const updateField = (field, value) => setForm((p) => ({ ...p, [field]: value }));
 
-  const handleImageChange = (e) => {
-    const files = Array.from(e.target.files).slice(0, 5);
-    setImages(files);
-    setPreviews(files.map((f) => URL.createObjectURL(f)));
-  };
+  // const handleImageChange = (e) => {
+  //   const files = Array.from(e.target.files).slice(0, 5);
+  //   setImages(files);
+  //   setPreviews(files.map((f) => URL.createObjectURL(f)));
+  // };
 
   const validate = () => {
     if (!form.title || !form.description || !form.category || !form.condition) {
@@ -48,8 +49,11 @@ export default function CreateAuction() {
     if (!form.duration_days || Number(form.duration_days) <= 0) {
       return "duration_days must be greater than 0.";
     }
-    if (images.length < 1 || images.length > 5) {
-      return "Please upload between 1 and 5 images.";
+    // if (images.length < 1 || images.length > 5) {
+    //   return "Please upload between 1 image";
+    // }
+    if (!image) {
+      return "Please upload an image";
     }
     return null;
   };
@@ -65,14 +69,11 @@ export default function CreateAuction() {
     setLoading(true);
 
     try {
-      // TODO: replace with real API call
-      // const data = new FormData();
-      // Object.entries(form).forEach(([k, v]) => data.append(k, v));
-      // images.forEach((img) => data.append("images", img));
-      // await client.post("/auctions", data, { headers: { "Content-Type": "multipart/form-data" } });
-
-      console.log("Creating auction:", form, images);
-      await new Promise((r) => setTimeout(r, 600)); // mock delay
+      // start_time from <input type="datetime-local"> has no seconds/timezone
+      // (e.g. "2026-07-15T10:00") — pass it through as-is, FastAPI/pydantic
+      // parses it as a naive datetime same as the rest of the backend expects.
+      // await apiCreateAuction(form, images);
+      await apiCreateAuction(form, [image]);
 
       navigate("/seller/dashboard/auctions");
     } catch (err) {
@@ -177,9 +178,9 @@ export default function CreateAuction() {
           {/* Images */}
           <div>
             <label className="block text-sm font-medium text-neutral9 mb-1">
-              Images (1–5)
+              Image
             </label>
-            <input
+            {/* <input
               type="file"
               accept="image/jpeg,image/png"
               multiple
@@ -192,7 +193,14 @@ export default function CreateAuction() {
                   <img key={i} src={src} alt={`preview-${i}`} className="w-16 h-16 object-cover border border-slate-200" />
                 ))}
               </div>
-            )}
+            )} */}
+          <FileUploadBox
+              label="auction image"
+              value={image}
+              onChange={setImage}
+              accept="image/jpeg,image/png"
+          />
+
           </div>
 
           <Button type="submit" variant="secondary" size="md" className="w-full" disabled={loading}>

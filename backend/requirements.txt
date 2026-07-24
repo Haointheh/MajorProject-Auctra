@@ -1,14 +1,33 @@
-python3 -m venv venv
-source venv/bin/activate
-pip install fastapi uvicorn sqlalchemy psycopg2-binary python-dotenv "passlib[bcrypt]" python-jose python-multipart
-# pip install fastapi uvicorn pymongo python-jose "passlib[bcrypt]" python-multipart
-# brew tap mongodb/brew
-# brew install mongodb-community
-# brew install mongosh
-# brew install mongodb-community
-# brew services start mongodb-community
-# pip install motor python-dotenv pymongo
-pip install sqlalchemy asyncpg databases
-pip install psycopg2-binary
-pip install sqlalchemy psycopg2-binary
-pip3 install "passlib[bcrypt]"
+# cd "D:\Auctra\code\Major-Project-Auctra - v3"
+# .\.venv\Scripts\Activate.ps1
+# then cd backend
+
+# python3 -m venv venv
+# source venv/bin/activate
+# pip install fastapi uvicorn sqlalchemy psycopg2-binary python-dotenv "passlib[bcrypt]" python-jose python-multipart
+# # pip install fastapi uvicorn pymongo python-jose "passlib[bcrypt]" python-multipart
+# # brew tap mongodb/brew
+# # brew install mongodb-community
+# # brew install mongosh
+# # brew install mongodb-community
+# # brew services start mongodb-community
+# # pip install motor python-dotenv pymongo
+# pip install sqlalchemy asyncpg databases
+# pip install psycopg2-binary
+# pip install sqlalchemy psycopg2-binary
+# pip3 install "passlib[bcrypt]"
+# pip install email-validator
+
+fastapi
+uvicorn
+sqlalchemy
+asyncpg
+psycopg2-binary
+python-dotenv
+passlib[bcrypt]
+python-jose
+python-multipart
+email-validator
+
+databases
+apscheduler

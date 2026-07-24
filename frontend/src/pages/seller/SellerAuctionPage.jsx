@@ -1,11 +1,14 @@
+// 
+
 // src/pages/seller/SellerAuctionPage.jsx
 // Seller's view of one of their own auctions.
 // Uses the same Breadcrumb and EmptyState UI components as AuctionDetailPage.
 // BidFeed and LiveAuctionView will plug in here later without changing this file.
 
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getAuctionById, formatPrice } from "../../data/mockAuctions";
-import { MOCK_BIDS } from "../../data/mockBids";
+import { formatPrice } from "../../data/mockAuctions";
+import { apiGetAuction, apiDeleteAuction, apiGetBids, getImageUrl } from "../../api/auctions";
 import Breadcrumb from "../../ui/Breadcrumb";
 import EmptyState from "../../ui/EmptyState";
 import ConditionBadge from "../../ui/ConditionBadge";
@@ -55,21 +58,31 @@ function AuctionStatus({ auction }) {
 }
 
 // ── Seller controls ───────────────────────────────────────────────────────────
-function SellerControls({ auction, onDelete }) {
+function SellerControls({ auction, onDelete, deleting, onEdit }) {
   if (auction.status === "scheduled") {
     return (
       <div className="border border-slate-100 bg-white p-4 space-y-3">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Actions</p>
         <Button
+          variant="secondary"
+          size="sm"
+          className="w-full"
+          onClick={onEdit}
+          disabled={deleting}
+        >
+          Edit Auction
+        </Button>
+        <Button
           variant="primaryBorder"
           size="sm"
           className="w-full"
           onClick={() => onDelete(auction.id)}
+          disabled={deleting}
         >
-          Delete Auction
+          {deleting ? "Deleting…" : "Delete Auction"}
         </Button>
         <p className="text-[10px] text-slate-400 text-center">
-          Scheduled auctions can be deleted before they go live.
+          Scheduled auctions can be edited or deleted before they go live.
         </p>
       </div>
     );
@@ -113,10 +126,10 @@ function BidTable({ bids }) {
         <tbody>
           {bids.map((bid, i) => (
             <tr key={bid.id} className={`border-b border-slate-50 ${i === 0 ? "bg-amber-50/40" : "hover:bg-slate-50"}`}>
-              <td className="px-4 py-3 font-medium text-slate-800">{bid.bidder_name}</td>
+              <td className="px-4 py-3 font-medium text-slate-800">{bid.bidder?.name}</td>
               <td className="px-4 py-3 text-right font-black text-slate-900">{formatPrice(bid.amount)}</td>
               <td className="px-4 py-3 text-right text-xs text-slate-400">
-                {new Date(bid.placed_at).toLocaleTimeString()}
+                {new Date(bid.created_at).toLocaleTimeString()}
               </td>
             </tr>
           ))}
@@ -131,8 +144,52 @@ export default function SellerAuctionPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const auction = getAuctionById(id);
-  const bids = (MOCK_BIDS && MOCK_BIDS[id]) ? MOCK_BIDS[id] : [];
+  const [auction, setAuction] = useState(null);
+  const [bids, setBids] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    apiGetAuction(id)
+      .then((res) => {
+        if (cancelled) return;
+        const a = res.data;
+        setAuction({
+          ...a,
+          current_bid: a.current_highest_bid ?? a.base_price,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setAuction(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    // Bid history is best-effort — some auctions won't have any bids yet,
+    // and this endpoint may reject before the auction has gone live.
+    apiGetBids(id)
+      .then((res) => {
+        if (!cancelled) {
+          const sorted = [...(res.data || [])].sort((a, b) => b.amount - a.amount);
+          setBids(sorted);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBids([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (loading) {
+    return <div className="p-8"><EmptyState title="Loading auction…" /></div>;
+  }
 
   if (!auction) {
     return (
@@ -149,11 +206,16 @@ export default function SellerAuctionPage() {
     );
   }
 
-  const handleDelete = (auctionId) => {
+  const handleDelete = async (auctionId) => {
     if (!window.confirm(`Delete "${auction.title}"? This cannot be undone.`)) return;
-    // TODO: await client.delete(`/auctions/${auctionId}`)
-    console.log("Delete:", auctionId);
-    navigate("/seller/dashboard/auctions");
+    setDeleting(true);
+    try {
+      await apiDeleteAuction(auctionId);
+      navigate("/seller/dashboard/auctions");
+    } catch (err) {
+      alert(err?.response?.data?.detail || "Failed to delete auction.");
+      setDeleting(false);
+    }
   };
 
   return (
@@ -171,7 +233,7 @@ export default function SellerAuctionPage() {
         {/* Left: image + meta */}
         <div className="space-y-4">
           <div className="aspect-square w-full bg-slate-200 overflow-hidden">
-            <img src={auction.images[0]?.image_path} alt={auction.title} className="w-full h-full object-cover" />
+            <img src={getImageUrl(auction.images[0]?.image_path)} alt={auction.title} className="w-full h-full object-cover" />
           </div>
 
           {/* Meta grid */}
@@ -222,11 +284,16 @@ export default function SellerAuctionPage() {
             </div>
           </div>
 
-          <SellerControls auction={auction} onDelete={handleDelete} />
+          <SellerControls
+            auction={auction}
+            onDelete={handleDelete}
+            deleting={deleting}
+            onEdit={() => navigate(`/seller/dashboard/auctions/${auction.id}/edit`)}
+          />
 
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</p>
-            <p className="text-sm text-slate-600 leading-relaxed">{auction.description}</p>
+            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{auction.description}</p>
           </div>
         </div>
       </div>
