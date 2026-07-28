@@ -66,8 +66,10 @@ class Auction(Base):
     payment_completed_at = Column(DateTime, nullable=True)
     payment_method = Column(String, nullable=True)
     payment_due_at = Column(DateTime, nullable=True)
+    reminder_sent_at = Column(DateTime, nullable=True)
     is_cascaded = Column(Boolean, nullable=False, default=False)
     transaction_reference = Column(String, nullable=True)
+    ending_soon_notified = Column(Boolean, nullable=False, default=False)
     
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -112,8 +114,8 @@ class Collateral(Base):
     bidder_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     amount = Column(Integer, nullable=False)
     status = Column(SqlEnum(CollateralStatusEnum, name="collateral_status_enum"), default=CollateralStatusEnum.locked, nullable=False)
-    payment_due_at = Column(DateTime, nullable=True)
-    reminder_sent_at = Column(DateTime, nullable=True)
+    payment_method = Column(String, nullable=False)
+    transaction_reference = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     auction = relationship("Auction", backref="collaterals")
@@ -133,3 +135,15 @@ class Notification(Base):
     related_auction_id = Column(Integer, ForeignKey("auctions.id"), nullable=True)
     is_read = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=datetime.now)
+
+class OTPVerification(Base):
+    __tablename__ = "otp_verifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=False)
+    otp = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False)

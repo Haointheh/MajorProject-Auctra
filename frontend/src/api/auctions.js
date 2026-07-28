@@ -50,9 +50,11 @@ export const apiPlaceBid = (auctionId, amount) =>
 // ── Collateral ───────────────────────────────────────────────────────────────
 // Backend requires locked collateral before a bid is accepted
 // (403 "You must deposit collateral before bidding on this auction").
-export const apiDepositCollateral = (auctionId) =>
-  client.post(`/auctions/${auctionId}/collateral`);
+// export const apiDepositCollateral = (auctionId) =>
+//   client.post(`/auctions/${auctionId}/collateral`);
 
+export const apiDepositCollateral = (auctionId, paymentMethod) =>
+  client.post(`/auctions/${auctionId}/collateral`, { payment_method: paymentMethod });
 // Checks whether the current user already has collateral locked for this
 // auction (e.g. from a previous visit/session). 404 means none deposited yet
 // — callers should treat that as "no collateral", not an error.

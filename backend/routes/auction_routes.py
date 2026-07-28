@@ -9,10 +9,10 @@ from database import get_db
 from model import User, Auction, AuctionImage, CategoryEnum, Bid, Collateral, CollateralStatusEnum
 from auth import require_approved_seller, get_current_user
 from file_validation import validate_and_read
-from schemas.auction_schemas import AuctionResponse, AuctionUpdate, CompletePurchaseRequest
+from schemas.auction_schemas import AuctionResponse, AuctionUpdate, AuctionImageResponse, CompletePurchaseRequest
 from services.auction_status import compute_status
 from services.payment_completion import complete_purchase
-from collateral_utils import calculate_collateral_amount             #added
+from collateral_utils import calculate_collateral_amount
 
 from sqlalchemy import func
 
@@ -35,7 +35,7 @@ def list_auctions(db: Session = Depends(get_db)):
         
         current_highest = db.query(func.max(Bid.amount)).filter(Bid.auction_id == auction.id).scalar()
         response.current_highest_bid = current_highest
-        response.estimated_collateral = calculate_collateral_amount(auction)    #added
+        response.estimated_collateral = calculate_collateral_amount(auction)
         
         results.append(response)
 
@@ -163,6 +163,94 @@ def update_auction(
     response = AuctionResponse.model_validate(auction)
     response.status = compute_status(auction)
     return response
+
+@router.post("/auctions/{auction_id}/images", response_model=List[AuctionImageResponse])
+def add_auction_images(
+    auction_id: int,
+    images: List[UploadFile] = File(...),
+    current_user: User = Depends(require_approved_seller),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    if auction.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own auctions")
+
+    if compute_status(auction) != "scheduled":
+        raise HTTPException(status_code=400, detail="Images can only be changed while status is 'scheduled'")
+
+    existing_count = db.query(AuctionImage).filter(AuctionImage.auction_id == auction_id).count()
+
+    if len(images) < 1:
+        raise HTTPException(status_code=400, detail="No images provided")
+
+    if existing_count + len(images) > 5:
+        raise HTTPException(status_code=400, detail="An auction must have between 1 and 5 images")
+
+    # --- Validate all images BEFORE writing anything to disk/DB ---
+    validated_images = []
+    for image in images:
+        contents = validate_and_read(image)
+        validated_images.append((image, contents))
+
+    new_rows = []
+    for index, (image, contents) in enumerate(validated_images, start=existing_count + 1):
+        ext = os.path.splitext(image.filename)[1]
+        image_path = os.path.join(UPLOAD_DIR, f"{auction.id}_{index}{ext}")
+
+        with open(image_path, "wb") as f:
+            f.write(contents)
+
+        db_image = AuctionImage(auction_id=auction.id, image_path=image_path)
+        db.add(db_image)
+        new_rows.append(db_image)
+
+    db.commit()
+    for row in new_rows:
+        db.refresh(row)
+
+    return db.query(AuctionImage).filter(AuctionImage.auction_id == auction_id).all()
+
+
+@router.delete("/auctions/{auction_id}/images/{image_id}")
+def delete_auction_image(
+    auction_id: int,
+    image_id: int,
+    current_user: User = Depends(require_approved_seller),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    if auction.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own auctions")
+
+    if compute_status(auction) != "scheduled":
+        raise HTTPException(status_code=400, detail="Images can only be changed while status is 'scheduled'")
+
+    image = db.query(AuctionImage).filter(
+        AuctionImage.id == image_id,
+        AuctionImage.auction_id == auction_id,
+    ).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    remaining_count = db.query(AuctionImage).filter(AuctionImage.auction_id == auction_id).count()
+    if remaining_count <= 1:
+        raise HTTPException(status_code=400, detail="An auction must have at least 1 image")
+
+    image_path = image.image_path
+    db.delete(image)
+    db.commit()
+
+    if os.path.exists(image_path):
+        os.remove(image_path)
+
+    return {"message": f"Image {image_id} deleted."}
+
 
 @router.delete("/auctions/{auction_id}")
 def delete_auction(

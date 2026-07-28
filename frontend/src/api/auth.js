@@ -73,13 +73,22 @@
 // Real calls to the FastAPI backend (see backend/auth_routes.py, kyc_routes.py).
 import client from "./client";
 
-export const apiSignup = (data) =>
-  client.post("/signup", {
+// Step 1 of signup: no account is created yet. The backend emails a 6-digit
+// OTP and stashes the pending signup details server-side (otp_verifications
+// table) until it's verified or expires (10 min).
+export const apiRequestSignupOTP = (data) =>
+  client.post("/signup/request", {
     name: data.name,
     email: data.email,
     password: data.password,
     role: data.role, // "user" | "seller"
   });
+
+// Step 2: verifying the OTP is what actually creates the User row.
+// Note: unlike the old /signup, this does NOT return an access token —
+// follow it with apiResumeKYC to get a kyc_pending token for /kyc/submit.
+export const apiVerifySignupOTP = ({ email, otp }) =>
+  client.post("/signup/verify", { email, otp });
 
 export const apiLogin = (data) =>
   client.post("/login", {
@@ -87,9 +96,9 @@ export const apiLogin = (data) =>
     password: data.password,
   });
 
-// KYC must be submitted with the short-lived "kyc_pending" token returned by
-// /signup — pass it in explicitly rather than relying on whatever is
-// currently stored as the logged-in session token.
+// KYC must be submitted with a short-lived "kyc_pending" token — pass it in
+// explicitly rather than relying on whatever is currently stored as the
+// logged-in session token.
 export const apiSubmitKYC = (formData, kycPendingToken) =>
   client.post("/kyc/submit", formData, {
     headers: {

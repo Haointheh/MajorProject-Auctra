@@ -11,3 +11,14 @@ def calculate_collateral_amount(auction):
     Nothing outside this function should need to change when that happens.
     """
     return int(auction.base_price * COLLATERAL_PERCENTAGE)
+
+import uuid
+
+
+def generate_transaction_reference():
+    """
+    Generates a fake transaction reference to simulate what a real payment
+    gateway would return after a successful transaction. No real payment
+    gateway exists yet — this is purely for demo realism.
+    """
+    return f"TXN-{uuid.uuid4().hex[:8].upper()}"

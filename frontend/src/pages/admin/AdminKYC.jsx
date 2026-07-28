@@ -128,6 +128,7 @@ import PageHeader from "../../ui/PageHeader";
 import EmptyState from "../../ui/EmptyState";
 import Button from "../../ui/Button";
 import { apiGetPendingKYc, apiApproveKYC, apiRejectKYC } from "../../api/admin";
+import { getErrorMessage } from "../../utils/getErrorMessage";
 
 // to uploaded KYC images served by the backend's /uploads mount.
 const BACKEND_URL = "http://localhost:8000";
@@ -242,7 +243,7 @@ export default function AdminKYC() {
       const res = await apiGetPendingKYc();
       setPending(res.data);
     } catch (err) {
-      setError(err?.response?.data?.detail || err?.message || "Failed to load KYC submissions.");
+      setError(getErrorMessage(err, "Failed to load KYC submissions."));
     } finally {
       setLoading(false);
     }
@@ -258,7 +259,7 @@ export default function AdminKYC() {
       await apiApproveKYC(kycId);
       setPending((prev) => prev.filter((k) => k.id !== kycId));
     } catch (err) {
-      alert(err?.response?.data?.detail || err?.message || "Failed to approve KYC.");
+      alert(getErrorMessage(err, "Failed to approve KYC."));
     } finally {
       setBusyId(null);
     }
@@ -271,7 +272,7 @@ export default function AdminKYC() {
       await apiRejectKYC(kycId);
       setPending((prev) => prev.filter((k) => k.id !== kycId));
     } catch (err) {
-      alert(err?.response?.data?.detail || err?.message || "Failed to reject KYC.");
+      alert(getErrorMessage(err, "Failed to reject KYC."));
     } finally {
       setBusyId(null);
     }

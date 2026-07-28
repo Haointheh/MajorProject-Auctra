@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-from model import User, Auction, Bid, Collateral, CollateralStatusEnum
+from model import User, Auction, Bid, Collateral, CollateralStatusEnum, Notification
 from auth import require_kyc_approved_bidder
 from services.auction_status import compute_status
 from schemas.bidding_schemas import BidCreate, BidResponse
@@ -41,8 +41,15 @@ def place_bid(
     if compute_status(auction) != "live":
         raise HTTPException(status_code=400, detail="Bids can only be placed on live auctions")
 
-    # Step 5: compute the floor (current highest bid, or base_price if none)
-    current_highest = db.query(func.max(Bid.amount)).filter(Bid.auction_id == auction_id).scalar()
+    # Step 5: fetch the previous highest bid (if any), to compute the floor
+    # AND to know who to notify below.
+    previous_highest_bid = (
+        db.query(Bid)
+        .filter(Bid.auction_id == auction_id)
+        .order_by(Bid.amount.desc())
+        .first()
+    )
+    current_highest = previous_highest_bid.amount if previous_highest_bid else None
     floor = current_highest if current_highest is not None else auction.base_price
 
     # Step 6: increment check
@@ -60,6 +67,26 @@ def place_bid(
         amount=payload.amount,
     )
     db.add(new_bid)
+
+    # Step 7.5: write notification(s) for this bid event
+    if previous_highest_bid is None:
+        # No prior bids — this is the auction's first bid. Notify the seller.
+        db.add(Notification(
+            user_id=auction.seller_id,
+            message=f"Your auction #{auction.id} just received its first bid.",
+            notification_type="first_bid",
+            related_auction_id=auction.id,
+        ))
+    elif previous_highest_bid.bidder_id != current_user.id:
+        # Someone else held the highest bid — they've now been outbid.
+        db.add(Notification(
+            user_id=previous_highest_bid.bidder_id,
+            message=f"You've been outbid on auction #{auction.id}.",
+            notification_type="outbid",
+            related_auction_id=auction.id,
+        ))
+    # else: the same bidder raised their own highest bid — no one to notify.
+
     db.commit()
     db.refresh(new_bid)
 

@@ -197,14 +197,7 @@ def resume_kyc(credentials: UserLogin, db: Session = Depends(get_db)):
     token_data = {"sub": user.email, "purpose": "kyc_pending"}
     access_token = create_access_token(token_data)
 
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        role=user.role,
-        name=user.name,
-        email=user.email,
-    )
-
+    return Token(access_token=access_token, token_type="bearer")
 
 @router.get("/kyc/me", response_model=KYCResponse)
 def get_my_kyc(
@@ -265,23 +258,24 @@ def reject_kyc(
 
     return {"message": f"KYC for user {kyc_doc.user.email} rejected."}
 
+    from typing import Literal, Optional
 
 # ... (rest of your existing imports/setup stay the same)
 
-# @router.get("/kyc/me", response_model=KYCResponse)
-# def get_my_kyc(
-#     current_user: User = Depends(get_kyc_pending_user),
-#     db: Session = Depends(get_db),
-# ):
-#     """
-#     Lets the frontend pre-fill the resubmission form with whatever was
-#     submitted previously (used on the "Resume verification" screen).
-#     Only works with a kyc_pending token, same as /kyc/submit.
-#     """
-#     kyc_doc = db.query(KYCDocument).filter(KYCDocument.user_id == current_user.id).first()
-#     if not kyc_doc:
-#         raise HTTPException(status_code=404, detail="No previous KYC submission found")
-#     return kyc_doc
+@router.get("/kyc/me", response_model=KYCResponse)
+def get_my_kyc(
+    current_user: User = Depends(get_kyc_pending_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Lets the frontend pre-fill the resubmission form with whatever was
+    submitted previously (used on the "Resume verification" screen).
+    Only works with a kyc_pending token, same as /kyc/submit.
+    """
+    kyc_doc = db.query(KYCDocument).filter(KYCDocument.user_id == current_user.id).first()
+    if not kyc_doc:
+        raise HTTPException(status_code=404, detail="No previous KYC submission found")
+    return kyc_doc
 
 
 @router.post("/kyc/submit")

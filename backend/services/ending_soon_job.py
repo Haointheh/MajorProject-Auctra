@@ -1,0 +1,48 @@
+from datetime import datetime, timedelta
+
+from model import Auction, Bid, Notification
+
+
+def send_ending_soon_notifications(db):
+    """
+    Situation 4: an auction is within 1 hour of its end_time and hasn't
+    been notified yet. Notify every bidder plus the seller, then mark
+    the auction so we don't repeat this every 30 seconds.
+    """
+    threshold = datetime.now() + timedelta(minutes=30)
+
+    ending_soon_auctions = (
+        db.query(Auction)
+        .filter(
+            Auction.end_time > datetime.now(),
+            Auction.end_time <= threshold,
+            Auction.ending_soon_notified == False,
+        )
+        .all()
+    )
+
+    for auction in ending_soon_auctions:
+        bidder_rows = (
+            db.query(Bid.bidder_id)
+            .filter(Bid.auction_id == auction.id)
+            .distinct()
+            .all()
+        )
+        bidder_ids = [row[0] for row in bidder_rows]
+
+        for bidder_id in bidder_ids:
+            db.add(Notification(
+                user_id=bidder_id,
+                message=f"Auction #{auction.id} is ending soon.",
+                notification_type="ending_soon",
+                related_auction_id=auction.id,
+            ))
+
+        db.add(Notification(
+            user_id=auction.seller_id,
+            message=f"Your auction #{auction.id} is ending soon.",
+            notification_type="ending_soon",
+            related_auction_id=auction.id,
+        ))
+
+        auction.ending_soon_notified = True

@@ -65,3 +65,15 @@ class LoginResponse(BaseModel):       #this added
     user: UserResponse
     access_token: str
     token_type: str = "bearer"
+
+class OTPRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: Literal["user", "seller"]
+
+
+class OTPVerify(BaseModel):
+    email: EmailStr
+    otp: str
+

@@ -32,7 +32,7 @@ def resolve_auction(auction, db):
         )
         if winner_collateral:
             winner_collateral.status = CollateralStatusEnum.held_for_payment
-            winner_collateral.payment_due_at = datetime.now() + timedelta(days=3)
+            auction.payment_due_at = datetime.now() + timedelta(days=3)
 
         # Step 3: everyone else's locked collateral -> released
         other_collaterals = (

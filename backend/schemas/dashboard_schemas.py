@@ -58,3 +58,25 @@ class BidderDashboardResponse(BaseModel):
     my_bids: list[BidderAuctionSummary]
     notifications: list[NotificationEntry]
 
+class AdminAuctionSummary(BaseModel):
+    id: int
+    title: str
+    category: str
+    base_price: float
+    start_time: datetime
+    end_time: datetime
+    status: str
+    is_resolved: bool
+    is_cascaded: bool
+    seller_id: int
+    seller_name: str
+    highest_bidder_id: int | None
+    highest_bidder_name: str | None
+    highest_bid_amount: float | None
+    bid_history: list[BidHistoryEntry]
+    payment_status: str
+
+
+class AdminDashboardResponse(BaseModel):
+    all_auctions: list[AdminAuctionSummary]
+

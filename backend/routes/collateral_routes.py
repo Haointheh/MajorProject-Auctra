@@ -5,12 +5,15 @@ from database import get_db
 from model import User, Auction, Collateral, CollateralStatusEnum
 from auth import require_kyc_approved_bidder
 from services.auction_status import compute_status
-from collateral_utils import calculate_collateral_amount
-from schemas.collateral_schemas import CollateralResponse
+from collateral_utils import calculate_collateral_amount, generate_transaction_reference
+from schemas.collateral_schemas import CollateralResponse, CollateralCreate, CollateralPreviewResponse
 
 router = APIRouter()
 
 
+# Kept from our earlier patch — backend dev's update didn't include this.
+# Lets the frontend check "did I already deposit?" on page load instead of
+# only finding out via a failed POST.
 @router.get("/auctions/{auction_id}/collateral/me", response_model=CollateralResponse)
 def get_my_collateral(
     auction_id: int,
@@ -29,6 +32,7 @@ def get_my_collateral(
 @router.post("/auctions/{auction_id}/collateral", response_model=CollateralResponse)
 def deposit_collateral(
     auction_id: int,
+    payload: CollateralCreate,
     current_user: User = Depends(require_kyc_approved_bidder),
     db: Session = Depends(get_db),
 ):
@@ -61,7 +65,9 @@ def deposit_collateral(
         auction_id=auction_id,
         bidder_id=current_user.id,
         amount=amount,
-        status=CollateralStatusEnum.locked
+        status=CollateralStatusEnum.locked,
+        payment_method=payload.payment_method,
+        transaction_reference=generate_transaction_reference()
     )
     db.add(new_collateral)
     db.commit()
@@ -69,3 +75,24 @@ def deposit_collateral(
 
     # Step 7: return response
     return new_collateral
+
+
+@router.get("/auctions/{auction_id}/collateral/preview", response_model=CollateralPreviewResponse)
+def preview_collateral(
+    auction_id: int,
+    current_user: User = Depends(require_kyc_approved_bidder),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    if auction.seller_id == current_user.id:
+        raise HTTPException(status_code=403, detail="You cannot preview collateral on your own auction")
+
+    if compute_status(auction) != "live":
+        raise HTTPException(status_code=400, detail="Collateral preview is only available for live auctions")
+
+    amount = calculate_collateral_amount(auction)
+
+    return {"auction_id": auction_id, "amount": amount}

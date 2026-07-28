@@ -45,6 +45,7 @@ import model
 from routes.bidding_routes import router as bidding_router
 from routes.collateral_routes import router as collateral_router
 from routes.dashboard_routes import router as dashboard_router
+from routes.notification_routes import router as notification_router
 from services.auction_resolution import resolve_auction
 from services.payment_deadline_job import send_payment_reminders, cascade_overdue_payments, fail_expired_cascades
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -52,6 +53,7 @@ from datetime import datetime
 import os           #added
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from services.ending_soon_job import send_ending_soon_notifications
 
 app = FastAPI()
 
@@ -83,6 +85,7 @@ app.include_router(auction_router)
 app.include_router(bidding_router)
 app.include_router(collateral_router)
 app.include_router(dashboard_router)
+app.include_router(notification_router)
 
 
 def close_ended_auctions():
@@ -113,9 +116,18 @@ def process_payment_deadlines():
         db.close()
 
 
+def process_ending_soon_notifications():
+    db = SessionLocal()
+    try:
+        send_ending_soon_notifications(db)
+        db.commit()
+    finally:
+        db.close()
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(close_ended_auctions, "interval", seconds=30)
 scheduler.add_job(process_payment_deadlines, "interval", seconds=30)
+scheduler.add_job(process_ending_soon_notifications, "interval", seconds=30)
 
 
 @app.on_event("startup")
