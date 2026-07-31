@@ -25,8 +25,16 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.get("/auctions", response_model=list[AuctionResponse])
-def list_auctions(db: Session = Depends(get_db)):
-    auctions = db.query(Auction).all()
+def list_auctions(search: str | None = None, db: Session = Depends(get_db)):
+    query = db.query(Auction)
+
+    if search:
+        term = f"%{search}%"
+        query = query.filter(
+            Auction.title.ilike(term) | Auction.description.ilike(term)
+        )
+
+    auctions = query.all()
 
     results = []
     for auction in auctions:
