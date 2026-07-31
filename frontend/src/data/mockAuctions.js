@@ -6,28 +6,8 @@
 // Shape mirrors the AuctionResponse schema from FastAPI.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const CATEGORY_META = {
-  art: {
-    label: "Art",
-    description: "Original paintings, prints, sculptures and mixed-media works from emerging and established artists.",
-  },
-  fashion: {
-    label: "Fashion",
-    description: "Rare designer pieces, vintage couture and limited-edition accessories from around the world.",
-  },
-  jewellery: {
-    label: "Jewellery",
-    description: "Certified fine jewellery, estate pieces, and gemstone collections with verified provenance.",
-  },
-  antiques: {
-    label: "Antiques",
-    description: "Authenticated antiques spanning furniture, ceramics, silverware and historical artefacts.",
-  },
-  handicrafts: {
-    label: "Handicrafts",
-    description: "Handmade crafts, artisanal goods, and traditional works celebrating cultural heritage.",
-  },
-};
+// Category metadata (label, description, image) lives in data/categories.js
+// now — that's the single source of truth every page reads from.
 
 // Status helpers
 // "live"      → auction is running right now
