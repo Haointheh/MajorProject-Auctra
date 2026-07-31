@@ -9,6 +9,10 @@ import client, { BASE_URL } from "./client";
 // client-side by `auction.category` (see CategoryPage.jsx).
 export const apiListAuctions = () => client.get("/auctions");
 
+// Server-side search (matches title/description, case-insensitive).
+export const apiSearchAuctions = (query) =>
+  client.get("/auctions", { params: { search: query } });
+
 export const apiGetAuction = (auctionId) => client.get(`/auctions/${auctionId}`);
 
 // Seller-only. Backend expects multipart/form-data: title, description,
@@ -31,6 +35,21 @@ export const apiCreateAuction = (form, images) => {
 export const apiUpdateAuction = (auctionId, payload) =>
   client.patch(`/auctions/${auctionId}`, payload);
 
+// Add one or more images to a scheduled auction (max 5 total). `images` is
+// an array of File objects.
+export const apiAddAuctionImages = (auctionId, images) => {
+  const data = new FormData();
+  images.forEach((image) => data.append("images", image));
+  return client.post(`/auctions/${auctionId}/images`, data, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+// Remove a single image from a scheduled auction. Backend rejects this if
+// it would leave the auction with 0 images.
+export const apiDeleteAuctionImage = (auctionId, imageId) =>
+  client.delete(`/auctions/${auctionId}/images/${imageId}`);
+
 // Seller-only, and only while the auction is still "scheduled" — the backend
 // rejects (400) attempts to delete a live/ended auction.
 export const apiDeleteAuction = (auctionId) => client.delete(`/auctions/${auctionId}`);
@@ -50,11 +69,10 @@ export const apiPlaceBid = (auctionId, amount) =>
 // ── Collateral ───────────────────────────────────────────────────────────────
 // Backend requires locked collateral before a bid is accepted
 // (403 "You must deposit collateral before bidding on this auction").
-// export const apiDepositCollateral = (auctionId) =>
-//   client.post(`/auctions/${auctionId}/collateral`);
-
+// paymentMethod must be one of "esewa" | "khalti" | "card" (CollateralCreate).
 export const apiDepositCollateral = (auctionId, paymentMethod) =>
   client.post(`/auctions/${auctionId}/collateral`, { payment_method: paymentMethod });
+
 // Checks whether the current user already has collateral locked for this
 // auction (e.g. from a previous visit/session). 404 means none deposited yet
 // — callers should treat that as "no collateral", not an error.

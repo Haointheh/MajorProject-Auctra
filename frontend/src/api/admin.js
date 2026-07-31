@@ -12,3 +12,5 @@ export const apiRejectKYC = (kycId) => client.patch(`/kyc/${kycId}/reject`);
 // and payment status. Used to derive stats on AdminOverview rather than a
 // separate pre-aggregated stats endpoint (none exists yet).
 export const apiGetAdminDashboard = () => client.get("/admin/dashboard");
+
+export const apiGetAllUsers = () => client.get("/admin/users");
