@@ -51,10 +51,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import PublicRoutes from "./routes/PublicRoutes";
 import SellerRoutes from "./routes/SellerRoutes";
 import AdminRoutes from "./routes/AdminRoutes";
+import ScrollToTop from "./components/ScrollToTop";
+import ScrollToHash from "./components/ScrollToHash";
 
 export default function App() {
   return (
     <BrowserRouter>
+    <ScrollToTop />
+    <ScrollToHash />
       <Routes>
         <Route path="/*" element={<PublicRoutes />} />
         <Route path="/seller/*" element={<SellerRoutes />} />
