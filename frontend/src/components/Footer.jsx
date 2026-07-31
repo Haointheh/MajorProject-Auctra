@@ -1,4 +1,5 @@
 import React from 'react';
+import {Link} from 'react-router-dom'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -32,7 +33,12 @@ export default function Footer() {
               <ul className="space-y-3 text-sm text-gray-700">
                 <li><a href="#how-it-works" className="hover:text-black transition-colors duration-200">How it Works</a></li>
                 <li><a href="#newsletter" className="hover:text-black transition-colors duration-200">Newsletter</a></li>
-                <li><a href="#about-us" className="hover:text-black transition-colors duration-200">About Us</a></li>
+                {/* <li><a href="#about-us" className="hover:text-black transition-colors duration-200">About Us</a></li> */}
+                <li>
+                  <Link to="/#about-us" className="hover:text-black transition-colors duration-200">
+                    About Us
+                  </Link>
+                </li>
               </ul>
             </div>
 
@@ -42,7 +48,8 @@ export default function Footer() {
                 Legal
               </h3>
               <ul className="space-y-3 text-sm text-gray-700">
-                <li><a href="#terms" className="hover:text-black transition-colors duration-200">Terms</a></li>
+                {/* <li><a href="#terms" className="hover:text-black transition-colors duration-200">Terms</a></li> */}
+                <li><Link to="/terms" className="hover:text-black transition-colors duration-200"> Terms</Link></li>
                 <li><a href="#privacy" className="hover:text-black transition-colors duration-200">Privacy</a></li>
                 <li><a href="#agreement" className="hover:text-black transition-colors duration-200">Bidder Agreement</a></li>
               </ul>

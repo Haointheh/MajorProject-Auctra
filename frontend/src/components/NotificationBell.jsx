@@ -1,4 +1,3 @@
-// src/components/NotificationBell.jsx
 // No WebSocket/push yet on the backend — this polls GET /notifications/me
 // every 15s while mounted. Covers: first_bid (seller), outbid (bidder),
 // ending_soon (bidders + seller). See routes/notification_routes.py.
@@ -24,7 +23,7 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function NotificationBell() {
+export default function NotificationBell({ align = "right" }) {
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
   const ref = useRef(null);
@@ -95,14 +94,18 @@ export default function NotificationBell() {
       >
         <MdNotificationsNone size={22} />
         {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center bg-rose-500 text-white text-[10px] font-bold rounded-full">
+          <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 flex items-center justify-center bg-rose-500 text-white text-[10px] font-bold rounded-full">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 left-auto top-full mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white border border-slate-200 shadow-lg z-50">
+        <div
+          className={`absolute top-full mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white border border-slate-200 shadow-lg z-50 ${
+            align === "left" ? "left-0 right-auto" : "right-0 left-auto"
+          }`}
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-widest">
               Notifications
