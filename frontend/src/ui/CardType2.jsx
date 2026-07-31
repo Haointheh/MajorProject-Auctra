@@ -6,9 +6,17 @@ export default function CardType2({
   imageUrl = '',
   alt = '',
   tag = null,
+  onClick = null,
 }) {
+  const Wrapper = onClick ? "button" : "div";
+
   return (
-    <div className="bg-white overflow-hidden shadow-sm">
+    <Wrapper
+      onClick={onClick || undefined}
+      className={`bg-white overflow-hidden shadow-sm text-left w-full ${
+        onClick ? "cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-md" : ""
+      }`}
+    >
 
       {/* Image */}
       <div className="w-full h-44 bg-slate-200">
@@ -40,6 +48,6 @@ export default function CardType2({
         )}
       </div>
 
-    </div>
+    </Wrapper>
   );
 }

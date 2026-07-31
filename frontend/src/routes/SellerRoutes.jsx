@@ -1,10 +1,11 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
-import SellerLayout from "../pages/seller/SellerLayout";
+import SellerLayout from "../components/layouts/SellerLayout";
 import SellerOverview from "../pages/seller/SellerOverview";
 import SellerListings from "../pages/seller/SellerListings";
 import CreateAuction from "../pages/seller/Createauction";
 import EditAuction from "../pages/seller/EditAuction";
 import SellerAuctionPage from "../pages/seller/SellerAuctionPage";
+import ProfilePage from "../pages/ProfilePage";
 import { useAuthStore } from "../store/useAuthStore";
 
 function SellerGuard() {
@@ -22,6 +23,7 @@ export default function SellerRoutes() {
           <Route path="dashboard" element={<SellerOverview />} />
           <Route path="dashboard/auctions" element={<SellerListings />} />
           <Route path="dashboard/create" element={<CreateAuction />} />
+          <Route path="dashboard/profile" element={<ProfilePage embedded />} />
           <Route path="dashboard/auctions/:id/edit" element={<EditAuction />} />
           <Route path="dashboard/auctions/:id" element={<SellerAuctionPage />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
