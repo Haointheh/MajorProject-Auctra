@@ -123,8 +123,8 @@ export default function UpcomingAuctionsPage() {
           <EmptyState title={error} />
         ) : filteredAuctions.length === 0 ? (
           <EmptyState
-            title="No upcoming auctions here."
-            subtitle="Check back soon, or try a different category."
+            title="No upcoming auctions currently."
+            subtitle="Check back again soon~."
           />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
