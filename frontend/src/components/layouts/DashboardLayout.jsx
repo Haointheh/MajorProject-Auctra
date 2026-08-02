@@ -87,6 +87,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import logo from "../../assets/auctra_logo-cropped.svg";
 import UserMenu from "../UserMenu";
+import NotificationBell from "../NotificationBell";
 
 // Picks the single most specific (longest-path) match instead of letting
 // every ancestor route light up too — e.g. "Overview" at /seller/dashboard
@@ -184,12 +185,12 @@ export default function DashboardLayout({ navItems = [], roleLabel = "", showBac
               {roleLabel}
             </span>
           )}
+          <NotificationBell />
           <UserMenu />
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-
         {/* ── Sidebar (desktop) ── */}
         <aside className="w-56 bg-white border-r border-slate-200 shrink-0 hidden md:flex flex-col">
           <NavList navItems={navItems} activePath={activePath} onNavigate={goTo} />

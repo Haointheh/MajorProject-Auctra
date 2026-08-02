@@ -1,19 +1,20 @@
-// No WebSocket/push yet on the backend — this polls GET /notifications/me
-// every 15s while mounted. Covers: first_bid (seller), outbid (bidder),
-// ending_soon (bidders + seller). See routes/notification_routes.py.
+// Live via WebSocket now (see hooks/useNotificationSocket.js, connected
+// once app-wide from App.jsx) — this fetches the notification history
+// once on mount (GET /notifications/me), then relies on the shared store
+// for anything new pushed in real time. Covers: first_bid (seller), outbid
+// (bidder), ending_soon (bidders + seller). See routes/notification_routes.py.
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MdNotificationsNone } from "react-icons/md";
 import { useAuthStore } from "../store/useAuthStore";
+import { useNotificationStore } from "../store/useNotificationStore";
 import { apiGetAuction } from "../api/auctions";
 import {
   apiGetNotifications,
   apiMarkNotificationRead,
   apiMarkAllNotificationsRead,
 } from "../api/notifications";
-
-const POLL_INTERVAL_MS = 15000;
 
 function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso)) / 1000);
@@ -29,24 +30,23 @@ export default function NotificationBell({ align = "right" }) {
   const ref = useRef(null);
 
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
+
+  const notifications = useNotificationStore((s) => s.notifications);
+  const setNotifications = useNotificationStore((s) => s.setNotifications);
+  const markRead = useNotificationStore((s) => s.markRead);
+  const markAllReadInStore = useNotificationStore((s) => s.markAllRead);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  const fetchNotifications = () => {
+  useEffect(() => {
+    if (!isAuthenticated) return;
     apiGetNotifications()
       .then((res) => setNotifications(res.data || []))
       .catch(() => {
-        // Silent — this is a background poll, not a user-initiated action.
+        // Silent — history fetch failing shouldn't break the bell; new
+        // notifications will still arrive live via the socket regardless.
       });
-  };
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, setNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -61,9 +61,7 @@ export default function NotificationBell({ align = "right" }) {
   const handleNotificationClick = (n) => {
     if (!n.is_read) {
       apiMarkNotificationRead(n.id).catch(() => {});
-      setNotifications((prev) =>
-        prev.map((item) => (item.id === n.id ? { ...item, is_read: true } : item))
-      );
+      markRead(n.id);
     }
     setOpen(false);
     if (n.related_auction_id) {
@@ -80,7 +78,7 @@ export default function NotificationBell({ align = "right" }) {
   const handleMarkAllRead = () => {
     apiMarkAllNotificationsRead()
       .then(() => {
-        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+        markAllReadInStore();
       })
       .catch(() => {});
   };
