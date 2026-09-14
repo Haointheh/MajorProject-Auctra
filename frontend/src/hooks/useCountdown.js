@@ -1,6 +1,5 @@
 // useCountdown.js is a hook that ticks every second and outputs "01h 47m 03s" for live auctions or "2d 14h 30m" for upcoming ones.
 
-// src/hooks/useCountdown.js
 import { useState, useEffect } from "react";
 
 /**

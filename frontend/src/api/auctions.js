@@ -1,10 +1,7 @@
-// src/api/auctions.js
-// Real calls to the FastAPI backend
 // (see backend/routes/auction_routes.py, bidding_routes.py,
 //  collateral_routes.py, dashboard_routes.py).
 import client, { BASE_URL } from "./client";
 
-// ── Auctions ─────────────────────────────────────────────────────────────────
 // No category filter param on the backend yet — fetch everything and filter
 // client-side by `auction.category` (see CategoryPage.jsx).
 export const apiListAuctions = () => client.get("/auctions");
@@ -16,7 +13,8 @@ export const apiSearchAuctions = (query) =>
 export const apiGetAuction = (auctionId) => client.get(`/auctions/${auctionId}`);
 
 // Seller-only. Backend expects multipart/form-data: title, description,
-// category, condition, base_price, start_time, duration_days, images (1-5).
+// category, condition, base_price, start_time, duration_value,
+// duration_unit, images (1-5).
 // `form` is a plain object with those scalar fields; `images` is an array of
 // File objects. Requires an approved-seller token (see auth.require_approved_seller).
 export const apiCreateAuction = (form, images) => {
@@ -30,8 +28,9 @@ export const apiCreateAuction = (form, images) => {
 
 // Seller-only, and only while the auction is still "scheduled" — the backend
 // rejects (400) edits to a live/ended auction. Only title, description,
-// condition, start_time, and duration_days can be changed (matches
-// AuctionUpdate on the backend — no base_price/category/image edits).
+// condition, start_time, duration_value, and duration_unit can be changed
+// (matches AuctionUpdate on the backend — no base_price/category/image
+// edits). duration_value and duration_unit must be provided together.
 export const apiUpdateAuction = (auctionId, payload) =>
   client.patch(`/auctions/${auctionId}`, payload);
 
@@ -54,19 +53,19 @@ export const apiDeleteAuctionImage = (auctionId, imageId) =>
 // rejects (400) attempts to delete a live/ended auction.
 export const apiDeleteAuction = (auctionId) => client.delete(`/auctions/${auctionId}`);
 
-// ── Images ───────────────────────────────────────────────────────────────────
+// Images 
 // Auction/KYC image paths come back from the backend as relative paths
 // (e.g. "uploads/auctions/3_1.jpg") served via the /uploads static mount —
 // they need the backend origin prefixed to be usable as an <img src>.
 export const getImageUrl = (path) => (path ? `${BASE_URL}/${path}` : "");
 
-// ── Bidding ──────────────────────────────────────────────────────────────────
+// Bidding 
 export const apiGetBids = (auctionId) => client.get(`/auctions/${auctionId}/bids`);
 
 export const apiPlaceBid = (auctionId, amount) =>
   client.post(`/auctions/${auctionId}/bids`, { amount });
 
-// ── Collateral ───────────────────────────────────────────────────────────────
+// Collateral 
 // Backend requires locked collateral before a bid is accepted
 // (403 "You must deposit collateral before bidding on this auction").
 // paymentMethod must be one of "esewa" | "khalti" | "card" (CollateralCreate).
@@ -79,5 +78,23 @@ export const apiDepositCollateral = (auctionId, paymentMethod) =>
 export const apiGetMyCollateral = (auctionId) =>
   client.get(`/auctions/${auctionId}/collateral/me`);
 
+// Winner (or cascaded second bidder) completes payment after the auction
+// ends. payment_method here is a different set than collateral's
+// (esewa | bank_transfer, not esewa | khalti | card — matches
+// CompletePurchaseRequest on the backend). No real payment gateway exists
+// yet, so transaction_reference is a client-generated mock reference, same
+// "for demo realism" convention the backend uses for collateral deposits.
+export const apiCompletePurchase = (auctionId, paymentMethod, transactionReference) =>
+  client.post(`/auctions/${auctionId}/complete-purchase`, {
+    payment_method: paymentMethod,
+    transaction_reference: transactionReference,
+  });
+
 // ── Dashboards ───────────────────────────────────────────────────────────────
 export const apiGetBidderDashboard = () => client.get("/bidder/dashboard");
+
+// Returns { current, future, past } — each auction includes payment_status
+// ("paid" | "awaiting payment" | "overdue") and the real bid_history (not
+// approximated like the list-endpoint-based pages below), computed
+// server-side by the same compute_payment_status() the admin dashboard uses.
+export const apiGetSellerDashboard = () => client.get("/seller/dashboard");

@@ -1,4 +1,3 @@
-// src/ui/StatCard.jsx
 // Reused in: SellerOverview, AdminOverview, ProfilePage seller section
 // Props:
 //   label    string

@@ -19,10 +19,12 @@ def send_otp_email(recipient_email: str, otp: str):
     Hello,
 
     Your Auctra verification code is: {otp}
-python3
+
     This code expires in 10 minutes.
 
     If you did not request this, please ignore this email.
+
+    Thank youuu!!!
 
     - Auctra Team
     """

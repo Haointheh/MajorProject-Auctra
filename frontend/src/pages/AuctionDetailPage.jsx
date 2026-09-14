@@ -1,18 +1,19 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { formatPrice } from "../data/mockAuctions";
-import { apiGetAuction, apiGetBids, apiPlaceBid, apiDepositCollateral, apiGetMyCollateral, getImageUrl } from "../api/auctions";
+import { apiGetAuction, apiGetBids, apiPlaceBid, apiDepositCollateral, apiGetMyCollateral, apiCompletePurchase, getImageUrl } from "../api/auctions";
 import useCountdown from "../hooks/useCountdown";
+import useAuctionRoomSocket from "../hooks/useAuctionRoomSocket";
 import Button from "../ui/Button";
 import AuthModal from "../auth/AuthModal";
 import ConditionBadge from "../ui/ConditionBadge";
 import Breadcrumb from "../ui/Breadcrumb";
 import EmptyState from "../ui/EmptyState";
-import BidFeed from "../components/BidFeed";
+import BidFeed from "../components/auction/BidFeed";
 import { useAuthStore } from "../store/useAuthStore";
 import getRole from "../utils/getRole";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import CollateralConfirmModal from "../components/CollateralConfirmModal"
+import InfoModal from "../ui/InfoModal"
 
 // ── Status + countdown ────────────────────────────────────────────────────────
 function AuctionStatus({ auction }) {
@@ -60,7 +61,153 @@ function AuctionStatus({ auction }) {
   );
 }
 
-function BidSection({ auction, role, isAuthenticated, onLoginRequired, onBidPlaced }) {
+// ── Payment section (winner / cascaded bidder) ──────────────────────────────
+// Shown after the auction has ended, to whichever bidder is currently
+// eligible to pay: the original highest bidder normally, or the
+// second-highest bidder once the auction has cascaded (see
+// payment_deadline_job.py's cascade_overdue_payments). Same
+// confirm-before-submit pattern as the collateral deposit above — picking a
+// payment method and clicking "Pay Now" opens an InfoModal confirmation;
+// the actual charge only fires once that's confirmed.
+const PAYMENT_METHODS = [
+  { value: "esewa", label: "eSewa" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+];
+
+function PaymentSection({ auction, bids, isAuthenticated, userId, onPaymentComplete }) {
+  const [collateral, setCollateral] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("esewa");
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState(null);
+
+  const sortedBids = [...bids].sort((a, b) => b.amount - a.amount);
+  // Mirrors auction_routes.py's complete_purchase_route exactly: cascaded ->
+  // second-highest bid is the eligible one; otherwise the highest is.
+  const eligibleBid = auction.is_cascaded ? sortedBids[1] : sortedBids[0];
+  const isEligibleBidder = isAuthenticated && eligibleBid && eligibleBid.bidder?.id === userId;
+
+  useEffect(() => {
+    // Only the non-cascaded case deducts collateral from the amount due
+    // (see payment_completion.py) — a cascaded bidder's collateral was
+    // already released back to them when the auction first resolved, so
+    // there's nothing to fetch or subtract for them.
+    if (!isEligibleBidder || auction.is_cascaded) return;
+    let cancelled = false;
+    apiGetMyCollateral(auction.id)
+      .then((res) => {
+        if (!cancelled) setCollateral(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setCollateral(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auction.id, auction.is_cascaded, isEligibleBidder]);
+
+  if (!auction.is_resolved || auction.payment_completed || !isEligibleBidder) return null;
+
+  const paymentLabel = PAYMENT_METHODS.find((m) => m.value === paymentMethod)?.label;
+  const amountDue = auction.is_cascaded
+    ? eligibleBid.amount
+    : eligibleBid.amount - (collateral?.amount ?? 0);
+
+  const handlePay = async () => {
+    setPaying(true);
+    setPayError(null);
+    try {
+      // No real payment gateway exists yet — same "for demo realism"
+      // client-generated reference used elsewhere, not asking the bidder
+      // to type one in themselves.
+      const transactionReference = `TXN-${Date.now().toString(36).toUpperCase()}`;
+      await apiCompletePurchase(auction.id, paymentMethod, transactionReference);
+      setConfirmingPayment(false);
+      onPaymentComplete();
+    } catch (err) {
+      setPayError(getErrorMessage(err, "Payment failed."));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+        <p className="text-sm font-bold text-emerald-800">
+          {auction.is_cascaded
+            ? "The original winner didn't pay in time — you're now eligible to purchase this item."
+            : "🎉 You won this auction!"}
+        </p>
+
+        <div className="bg-white border border-emerald-200 p-3 flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Amount Due</span>
+          <span className="text-lg font-black text-slate-900">{formatPrice(amountDue)}</span>
+        </div>
+
+        {!auction.is_cascaded && collateral && (
+          <p className="text-xs text-slate-500">
+            Winning bid {formatPrice(eligibleBid.amount)} minus your collateral{" "}
+            {formatPrice(collateral.amount)} already on file.
+          </p>
+        )}
+
+        {auction.payment_due_at && (
+          <p className="text-xs text-rose-600 font-semibold">
+            Pay by {new Date(auction.payment_due_at).toLocaleString()}
+          </p>
+        )}
+
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+            Pay with
+          </label>
+          <div className="flex gap-2">
+            {PAYMENT_METHODS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setPaymentMethod(opt.value)}
+                className={`flex-1 text-sm font-semibold px-3 py-2 border transition-colors ${
+                  paymentMethod === opt.value
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Button variant="secondary" size="sm" onClick={() => setConfirmingPayment(true)}>
+          Pay Now
+        </Button>
+      </div>
+
+      {confirmingPayment && (
+        <InfoModal
+          eyebrow="Confirm Payment"
+          message={
+            <>
+              Pay <span className="font-bold text-slate-900">{formatPrice(amountDue)}</span> via{" "}
+              <span className="font-bold text-slate-900">{paymentLabel}</span> to complete this
+              purchase? This can't be undone.
+            </>
+          }
+          error={payError}
+          primaryLabel={paying ? "Processing…" : `Confirm & Pay ${formatPrice(amountDue)}`}
+          onPrimary={handlePay}
+          secondaryLabel="Cancel"
+          onSecondary={() => { setConfirmingPayment(false); setPayError(null); }}
+          disabled={paying}
+        />
+      )}
+    </>
+  );
+}
+
+function BidSection({ auction, bids, userId, role, isAuthenticated, onLoginRequired, onBidPlaced }) {
   const [collateral, setCollateral] = useState(null);
   const [checkingCollateral, setCheckingCollateral] = useState(true);
   const [depositing, setDepositing] = useState(false);
@@ -71,7 +218,6 @@ function BidSection({ auction, role, isAuthenticated, onLoginRequired, onBidPlac
   const [bidAmount, setBidAmount] = useState("");
   const [placingBid, setPlacingBid] = useState(false);
   const [bidError, setBidError] = useState(null);
-  const [bidSuccess, setBidSuccess] = useState(false);
 
   // On mount, check whether this user already deposited collateral for this
   // auction in an earlier visit/session — otherwise the deposit prompt would
@@ -233,27 +379,47 @@ function BidSection({ auction, role, isAuthenticated, onLoginRequired, onBidPlac
             bidder explicitly confirms the amount and payment method here,
             instead of the button above locking it in immediately. */}
         {confirmingDeposit && (
-          <CollateralConfirmModal
-            amount={
-              auction.estimated_collateral != null
-                ? formatPrice(auction.estimated_collateral)
-                : "this amount"
+          <InfoModal
+            eyebrow="Confirm Collateral Deposit"
+            message={
+              <>
+                Deposit{" "}
+                <span className="font-bold text-slate-900">
+                  {auction.estimated_collateral != null
+                    ? formatPrice(auction.estimated_collateral)
+                    : "this amount"}
+                </span>{" "}
+                via <span className="font-bold text-slate-900">{paymentLabel}</span>? This
+                collateral is locked to this auction and refunded automatically if you don't win.
+              </>
             }
-            paymentLabel={paymentLabel}
-            depositing={depositing}
-            depositError={depositError}
-            onConfirm={handleDepositCollateral}
-            onCancel={() => { setConfirmingDeposit(false); setDepositError(null); }}
+            error={depositError}
+            primaryLabel={depositing ? "Depositing…" : `Confirm & Pay with ${paymentLabel}`}
+            onPrimary={handleDepositCollateral}
+            secondaryLabel="Cancel"
+            onSecondary={() => { setConfirmingDeposit(false); setDepositError(null); }}
+            disabled={depositing}
           />
         )}
       </>
     );
   }
 
-  if (bidSuccess) {
+  // Derived from live bid data, not a one-way "I just bid" flag — so this
+  // correctly flips back to the bid form the moment someone else outbids
+  // you, instead of permanently showing "Bid placed!" forever. The bids
+  // list already updates live via useAuctionRoomSocket in the parent, so
+  // this recalculates automatically on every new bid, no extra wiring
+  // needed here.
+  const highestBid = bids && bids.length > 0
+    ? [...bids].sort((a, b) => b.amount - a.amount)[0]
+    : null;
+  const isCurrentlyHighest = highestBid && highestBid.bidder?.id === userId;
+
+  if (isCurrentlyHighest) {
     return (
       <div className="bg-emerald-50 border border-emerald-200 p-4 text-emerald-700 font-semibold text-sm">
-        Bid placed successfully! You'll be notified if you're outbid.
+        You're the highest bidder! You'll be notified if you're outbid.
       </div>
     );
   }
@@ -268,7 +434,7 @@ function BidSection({ auction, role, isAuthenticated, onLoginRequired, onBidPlac
     setBidError(null);
     try {
       await apiPlaceBid(auction.id, amount);
-      setBidSuccess(true);
+      setBidAmount("");
       onBidPlaced?.();
     } catch (err) {
       setBidError(getErrorMessage(err, "Couldn't place bid. Please try again."));
@@ -284,6 +450,11 @@ function BidSection({ auction, role, isAuthenticated, onLoginRequired, onBidPlac
           Collateral of {formatPrice(collateral.amount)} locked for this auction.
           {collateral.payment_method && ` Paid via ${collateral.payment_method}.`}
           {collateral.transaction_reference && ` Ref: ${collateral.transaction_reference}.`}
+        </p>
+      )}
+      {highestBid && !isCurrentlyHighest && (
+        <p className="text-xs font-semibold text-rose-600">
+          You've been outbid — place a new bid to get back in the running.
         </p>
       )}
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
@@ -345,15 +516,13 @@ export default function AuctionDetailPage() {
     Promise.all([loadAuction(), loadBids()]).finally(() => setLoading(false));
   }, [loadAuction, loadBids]);
 
-  // Light polling while live, until a websocket feed replaces this (see BidFeed.jsx).
-  useEffect(() => {
-    if (auction?.status !== "live") return;
-    const interval = setInterval(() => {
-      loadAuction();
-      loadBids();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [auction?.status, loadAuction, loadBids]);
+  // Live bid updates + status transitions (scheduled -> live -> ended) via
+  // the auction's WebSocket room — connects regardless of role/auth, same
+  // as the backend allows ("anyone can watch"). Replaces the old 5s poll.
+  useAuctionRoomSocket(id, {
+    onBid: () => { loadAuction(); loadBids(); },
+    onStatusChange: () => { loadAuction(); },
+  });
 
   if (loading) {
     return (
@@ -407,6 +576,7 @@ export default function AuctionDetailPage() {
     bidder_name: b.bidder.name,
     amount: b.amount,
     placed_at: b.created_at,
+    fraud_score: b.final_risk_score, // BidFeed's admin-only Risk column
   }));
 
   return (
@@ -482,10 +652,20 @@ export default function AuctionDetailPage() {
 
           <BidSection
             auction={auction}
+            bids={bids}
+            userId={user?.id}
             role={role}
             isAuthenticated={isAuthenticated}
             onLoginRequired={() => { setAuthMode("login"); setShowAuth(true); }}
             onBidPlaced={() => { loadAuction(); loadBids(); }}
+          />
+
+          <PaymentSection
+            auction={auction}
+            bids={bids}
+            isAuthenticated={isAuthenticated}
+            userId={user?.id}
+            onPaymentComplete={() => { loadAuction(); loadBids(); }}
           />
 
           <div>

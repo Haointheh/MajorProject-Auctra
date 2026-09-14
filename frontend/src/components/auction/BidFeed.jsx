@@ -6,9 +6,9 @@
 //   showFraudFlag  — admin only, adds Risk column with fraud score
 //   showYouBadge   — buyer only, highlights their own bids in blue
 //
-// Live updates are wired at the page level (see AuctionDetailPage.jsx's
-// useAuctionRoomSocket) — this component just renders whatever `bids` it's
-// handed. The auto-scroll ref already handles new bids appearing.
+// Live updates are wired at the page level (AuctionDetailPage.jsx's
+// useAuctionRoomSocket) — this component renders whatever `bids` it's handed. 
+// The auto-scroll ref already handles new bids appearing.
 //
 // Table shell (bordered card, sticky header, empty state, scroll behavior)
 // is shared with AdminUsers.jsx via ui/DataTable.jsx — everything below is

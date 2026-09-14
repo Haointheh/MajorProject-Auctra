@@ -53,12 +53,19 @@ import SellerRoutes from "./routes/SellerRoutes";
 import AdminRoutes from "./routes/AdminRoutes";
 import ScrollToTop from "./components/ScrollToTop";
 import ScrollToHash from "./components/ScrollToHash";
+import ToastContainer from "./components/ToastContainer";
+import useNotificationSocket from "./hooks/useNotificationSocket";
 
 export default function App() {
+  // One connection for the whole app, alive across every route — not
+  // per-page — so notifications keep arriving no matter where you are.
+  useNotificationSocket();
+
   return (
     <BrowserRouter>
     <ScrollToTop />
     <ScrollToHash />
+    <ToastContainer />
       <Routes>
         <Route path="/*" element={<PublicRoutes />} />
         <Route path="/seller/*" element={<SellerRoutes />} />
@@ -67,5 +74,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-
-

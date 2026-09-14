@@ -1,0 +1,31 @@
+{
+  "threshold": 0.8519254326820374,
+  "feature_order": [
+    "Bidder_Tendency",
+    "Bidding_Ratio",
+    "Successive_Outbidding",
+    "Last_Bidding",
+    "Auction_Bids",
+    "Starting_Price_Average",
+    "Early_Bidding",
+    "Winning_Ratio",
+    "Auction_Duration"
+  ],
+  "model_params": {
+    "colsample_bytree": 0.6168990620546355,
+    "learning_rate": 0.2,
+    "max_depth": 7,
+    "min_child_weight": 1,
+    "reg_alpha": 0.0,
+    "reg_lambda": 5.0,
+    "subsample": 1.0
+  },
+  "scale_pos_weight": 8.350951374207188,
+  "trained_on": "2026-06-20 17:04:32",
+  "test_metrics": {
+    "precision_class1": 0.99,
+    "recall_class1": 0.9802,
+    "f1_class1": 0.9851,
+    "accuracy": 0.9968
+  }
+}

@@ -23,9 +23,9 @@ def compute_payment_status(auction, collateral) -> str:
     return "payment overdue — cascaded to next bidder"
 
 def get_seller_dashboard_data(seller_id: int, db):
-    from model import Auction, Bid, User, Collateral
+    from model import Auction, Bid, User, Collateral, AuctionImage
     from services.auction_status import compute_status
-    from schemas.dashboard_schemas import BidHistoryEntry, SellerAuctionSummary, SellerDashboardResponse
+    from schemas.dashboard_schemas import BidHistoryEntry, SellerAuctionSummary, SellerDashboardResponse, AuctionImageSummary
 
     auctions = db.query(Auction).filter(Auction.seller_id == seller_id).all()
 
@@ -74,6 +74,12 @@ def get_seller_dashboard_data(seller_id: int, db):
 
         payment_status = compute_payment_status(auction, collateral)
 
+        images = (
+            db.query(AuctionImage)
+            .filter(AuctionImage.auction_id == auction.id)
+            .all()
+        )
+
         summary = SellerAuctionSummary(
             id=auction.id,
             title=auction.title,
@@ -89,6 +95,10 @@ def get_seller_dashboard_data(seller_id: int, db):
             highest_bid_amount=highest_bid_amount,
             bid_history=bid_history,
             payment_status=payment_status,
+            images=[
+                AuctionImageSummary(id=img.id, image_path=img.image_path)
+                for img in images
+            ],
         )
 
         if status == "live":

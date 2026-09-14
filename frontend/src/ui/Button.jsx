@@ -104,7 +104,6 @@ const baseStyle = {
   borderStyle: "solid",
   borderWidth: "2px",
 
-  /* 🔥 your "unrounded / sharp" style */
   borderRadius: "0px",
 
   transition:

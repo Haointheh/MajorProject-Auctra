@@ -1,11 +1,8 @@
-// 
-
-// src/pages/seller/SellerAuctionPage.jsx
 // Seller's view of one of their own auctions.
 // Uses the same Breadcrumb and EmptyState UI components as AuctionDetailPage.
-// BidFeed and LiveAuctionView will plug in here later without changing this file.
+// BidFeed and LiveAuctionView connected
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { formatPrice } from "../../data/mockAuctions";
 import { apiGetAuction, apiDeleteAuction, apiGetBids, getImageUrl } from "../../api/auctions";
@@ -15,6 +12,7 @@ import ConditionBadge from "../../ui/ConditionBadge";
 import StatusBadge from "../../ui/StatusBadge";
 import Button from "../../ui/Button";
 import useCountdown from "../../hooks/useCountdown";
+import useAuctionRoomSocket from "../../hooks/useAuctionRoomSocket";
 
 // ── Countdown banner (seller sees same banner as public page) ─────────────────
 function AuctionStatus({ auction }) {
@@ -149,13 +147,9 @@ export default function SellerAuctionPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-
-    apiGetAuction(id)
+  const loadAuction = useCallback(() => {
+    return apiGetAuction(id)
       .then((res) => {
-        if (cancelled) return;
         const a = res.data;
         setAuction({
           ...a,
@@ -163,29 +157,43 @@ export default function SellerAuctionPage() {
         });
       })
       .catch(() => {
-        if (!cancelled) setAuction(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        setAuction(null);
       });
+  }, [id]);
 
-    // Bid history is best-effort — some auctions won't have any bids yet,
-    // and this endpoint may reject before the auction has gone live.
-    apiGetBids(id)
+  // Bid history is best-effort — some auctions won't have any bids yet,
+  // and this endpoint may reject before the auction has gone live.
+  const loadBids = useCallback(() => {
+    return apiGetBids(id)
       .then((res) => {
-        if (!cancelled) {
-          const sorted = [...(res.data || [])].sort((a, b) => b.amount - a.amount);
-          setBids(sorted);
-        }
+        const sorted = [...(res.data || [])].sort((a, b) => b.amount - a.amount);
+        setBids(sorted);
       })
       .catch(() => {
-        if (!cancelled) setBids([]);
+        setBids([]);
       });
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    Promise.all([loadAuction(), loadBids()]).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, loadAuction, loadBids]);
+
+  // Live bid updates + status transitions — this page previously had no
+  // live-update mechanism at all (not even polling), which is why it sat
+  // static while the public AuctionDetailPage updated fine for bidders.
+  useAuctionRoomSocket(id, {
+    onBid: () => { loadAuction(); loadBids(); },
+    onStatusChange: () => { loadAuction(); },
+  });
 
   if (loading) {
     return <div className="p-8"><EmptyState title="Loading auction…" /></div>;

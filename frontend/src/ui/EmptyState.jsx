@@ -1,4 +1,3 @@
-// src/ui/EmptyState.jsx
 // Reused in: SellerListings, CategoryPage, AdminKYC, BidFeed
 // Props:
 //   title    string

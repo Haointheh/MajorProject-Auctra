@@ -8,7 +8,12 @@ def send_ending_soon_notifications(db):
     Situation 4: an auction is within 1 hour of its end_time and hasn't
     been notified yet. Notify every bidder plus the seller, then mark
     the auction so we don't repeat this every 30 seconds.
+
+    Returns the list of Notification objects created (not yet committed),
+    so the caller can push them over the websocket after committing.
     """
+    notifications_created = []
+
     threshold = datetime.now() + timedelta(minutes=30)
 
     ending_soon_auctions = (
@@ -31,18 +36,24 @@ def send_ending_soon_notifications(db):
         bidder_ids = [row[0] for row in bidder_rows]
 
         for bidder_id in bidder_ids:
-            db.add(Notification(
+            notification = Notification(
                 user_id=bidder_id,
                 message=f"Auction #{auction.id} is ending soon.",
                 notification_type="ending_soon",
                 related_auction_id=auction.id,
-            ))
+            )
+            db.add(notification)
+            notifications_created.append(notification)
 
-        db.add(Notification(
+        seller_notification = Notification(
             user_id=auction.seller_id,
             message=f"Your auction #{auction.id} is ending soon.",
             notification_type="ending_soon",
             related_auction_id=auction.id,
-        ))
+        )
+        db.add(seller_notification)
+        notifications_created.append(seller_notification)
 
         auction.ending_soon_notified = True
+
+    return notifications_created

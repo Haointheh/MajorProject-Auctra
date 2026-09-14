@@ -1,6 +1,5 @@
-// src/pages/seller/CreateAuction.jsx
 // Form fields match POST /auctions exactly: title, description, category,
-// condition, base_price, start_time, duration_days, images (1-5).
+// condition, base_price, start_time, duration_value, duration_unit, images (1-5).
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +11,7 @@ import FileUploadBox from "../../ui/FileUploadBox";
 
 const CATEGORIES = ["art", "fashion", "jewellery", "antiques", "handicrafts"];
 const CONDITIONS = ["excellent", "good", "fair", "poor"];
+const DURATION_UNITS = ["minutes", "hours", "days"];
 
 export default function CreateAuction() {
   const navigate = useNavigate();
@@ -25,7 +25,8 @@ export default function CreateAuction() {
     condition: "",
     base_price: "",
     start_time: "",
-    duration_days: "",
+    duration_value: "",
+    duration_unit: "days",
   });
   const [image, setImage] = useState(null);     //do array for multiple ([])
   // const [previews, setPreviews] = useState([]);
@@ -46,8 +47,8 @@ export default function CreateAuction() {
       return "base_price must be greater than 0.";
     }
     if (!form.start_time) return "Please select a start time.";
-    if (!form.duration_days || Number(form.duration_days) <= 0) {
-      return "duration_days must be greater than 0.";
+    if (!form.duration_value || Number(form.duration_value) <= 0) {
+      return "Duration must be greater than 0.";
     }
     // if (images.length < 1 || images.length > 5) {
     //   return "Please upload between 1 image";
@@ -126,7 +127,7 @@ export default function CreateAuction() {
               value={form.category}
               onChange={(e) => updateField("category", e.target.value)}
             >
-              <option value="">Select category</option>
+              <option value="" disabled>Select category</option>
               {CATEGORIES.map((c) => (
                 <option key={c} value={c} className="capitalize">{c}</option>
               ))}
@@ -139,7 +140,7 @@ export default function CreateAuction() {
               value={form.condition}
               onChange={(e) => updateField("condition", e.target.value)}
             >
-              <option value="">Select condition</option>
+              <option value="" disabled>Select condition</option>
               {CONDITIONS.map((c) => (
                 <option key={c} value={c} className="capitalize">{c}</option>
               ))}
@@ -164,15 +165,28 @@ export default function CreateAuction() {
               value={form.start_time}
               onChange={(e) => updateField("start_time", e.target.value)}
             />
-            <Input
-              id="duration_days"
-              label="Duration (days)"
-              type="number"
-              min="1"
-              placeholder="7"
-              value={form.duration_days}
-              onChange={(e) => updateField("duration_days", e.target.value)}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                id="duration_value"
+                label="Duration"
+                type="number"
+                min="1"
+                placeholder="7"
+                value={form.duration_value}
+                onChange={(e) => updateField("duration_value", e.target.value)}
+              />
+              <Input
+                as="select"
+                id="duration_unit"
+                label="Unit"
+                value={form.duration_unit}
+                onChange={(e) => updateField("duration_unit", e.target.value)}
+              >
+                {DURATION_UNITS.map((u) => (
+                  <option key={u} value={u} className="capitalize">{u}</option>
+                ))}
+              </Input>
+            </div>
           </div>
 
           {/* Images */}

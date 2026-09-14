@@ -1,4 +1,3 @@
-// src/ui/StatusBadge.jsx
 // Reused in: AuctionCard (CategoryPage), AuctionDetailPage, SellerListings, AdminOverview
 // Props:
 //   status  "live" | "scheduled" | "ended"

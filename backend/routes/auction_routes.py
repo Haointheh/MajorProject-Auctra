@@ -1,20 +1,22 @@
 import os
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 from database import get_db
-from model import User, Auction, AuctionImage, CategoryEnum, Bid, Collateral, CollateralStatusEnum
+from model import User, Auction, AuctionImage, CategoryEnum, Bid, Collateral, CollateralStatusEnum, Notification
 from auth import require_approved_seller, get_current_user
 from file_validation import validate_and_read
 from schemas.auction_schemas import AuctionResponse, AuctionUpdate, AuctionImageResponse, CompletePurchaseRequest
 from services.auction_status import compute_status
 from services.payment_completion import complete_purchase
-from collateral_utils import calculate_collateral_amount
+from services.connection_manager import manager
+from collateral_utils import estimate_public_collateral
+from duration_utils import get_duration_timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 
 
@@ -25,13 +27,16 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.get("/auctions", response_model=list[AuctionResponse])
-def list_auctions(search: str | None = None, db: Session = Depends(get_db)):
+def list_auctions(search: Optional[str] = Query(None), db: Session = Depends(get_db)):
     query = db.query(Auction)
 
     if search:
-        term = f"%{search}%"
+        like_pattern = f"%{search}%"
         query = query.filter(
-            Auction.title.ilike(term) | Auction.description.ilike(term)
+            or_(
+                Auction.title.ilike(like_pattern),
+                Auction.description.ilike(like_pattern),
+            )
         )
 
     auctions = query.all()
@@ -43,8 +48,8 @@ def list_auctions(search: str | None = None, db: Session = Depends(get_db)):
         
         current_highest = db.query(func.max(Bid.amount)).filter(Bid.auction_id == auction.id).scalar()
         response.current_highest_bid = current_highest
-        response.estimated_collateral = calculate_collateral_amount(auction)
-        
+        response.estimated_collateral = estimate_public_collateral(auction)
+
         results.append(response)
 
     return results
@@ -60,7 +65,7 @@ def get_auction(auction_id: int, db: Session = Depends(get_db)):
 
     current_highest = db.query(func.max(Bid.amount)).filter(Bid.auction_id == auction_id).scalar()
     response.current_highest_bid = current_highest
-    response.estimated_collateral = calculate_collateral_amount(auction)
+    response.estimated_collateral = estimate_public_collateral(auction)
 
     return response
 
@@ -74,7 +79,8 @@ def create_auction(
     condition: Literal["excellent", "good", "fair", "poor"] = Form(...),
     base_price: int = Form(...),
     start_time: datetime = Form(...),
-    duration_days: int = Form(...),
+    duration_value: int = Form(...),
+    duration_unit: Literal["minutes", "hours", "days"] = Form(...),
     images: List[UploadFile] = File(...),
     current_user: User = Depends(require_approved_seller),
     db: Session = Depends(get_db),
@@ -83,14 +89,14 @@ def create_auction(
     if base_price <= 0:
         raise HTTPException(status_code=400, detail="base_price must be greater than 0")
 
-    if duration_days <= 0:
-        raise HTTPException(status_code=400, detail="duration_days must be greater than 0")
+    if duration_value <= 0:
+        raise HTTPException(status_code=400, detail="duration_value must be greater than 0")
 
     if len(images) < 1 or len(images) > 5:
         raise HTTPException(status_code=400, detail="An auction must have between 1 and 5 images")
 
     # --- Compute end_time from start_time + duration ---
-    end_time = start_time + timedelta(days=duration_days)
+    end_time = start_time + get_duration_timedelta(duration_value, duration_unit)
 
     # --- Validate all images BEFORE creating anything in the DB ---
     validated_images = []
@@ -151,9 +157,19 @@ def update_auction(
 
     update_data = payload.model_dump(exclude_unset=True)
 
+    if ("duration_value" in update_data) != ("duration_unit" in update_data):
+        raise HTTPException(
+            status_code=400,
+            detail="duration_value and duration_unit must be provided together",
+        )
+
     current_duration = auction.end_time - auction.start_time
     new_start_time = update_data.get("start_time", auction.start_time)
-    new_duration = timedelta(days=update_data["duration_days"]) if "duration_days" in update_data else current_duration
+
+    if "duration_value" in update_data:
+        new_duration = get_duration_timedelta(update_data["duration_value"], update_data["duration_unit"])
+    else:
+        new_duration = current_duration
 
     if "title" in update_data:
         auction.title = update_data["title"]
@@ -282,7 +298,7 @@ def delete_auction(
     return {"message": f"Auction {auction_id} has been cancelled."}
 
 @router.post("/auctions/{auction_id}/complete-purchase")
-def complete_purchase_route(
+async def complete_purchase_route(
     auction_id: int,
     payload: CompletePurchaseRequest,
     current_user: User = Depends(get_current_user),
@@ -315,6 +331,42 @@ def complete_purchase_route(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # Notify the seller that payment has been completed
+    payment_notification = Notification(
+        user_id=auction.seller_id,
+        message=f"Payment for Auction #{auction.id} has been completed. Amount paid: {result['amount_paid']}.",
+        notification_type="payment_completed",
+        related_auction_id=auction.id,
+    )
+    db.add(payment_notification)
+
     db.commit()
+
+    # Push it live
+    db.refresh(payment_notification)
+    await manager.send_to_user(auction.seller_id, {
+        "id": payment_notification.id,
+        "notification_type": payment_notification.notification_type,
+        "message": payment_notification.message,
+        "related_auction_id": payment_notification.related_auction_id,
+        "created_at": payment_notification.created_at.isoformat(),
+    })
+
+    # Payment status just changed on the admin dashboard too.
+    await manager.broadcast_to_admins({
+        "type": "dashboard_refresh",
+        "reason": "payment_completed",
+        "auction_id": auction.id,
+    })
+
+    # Same reasoning as process_payment_deadlines in main.py: payment_completed
+    # flipping doesn't change compute_status()'s scheduled/live/ended string,
+    # so reuse "status_changed" to get anyone watching this auction's page
+    # (buyer, seller) to refetch and see the payment section disappear.
+    await manager.broadcast_to_room(auction.id, {
+        "type": "status_changed",
+        "auction_id": auction.id,
+        "new_status": "ended",
+    })
 
     return result

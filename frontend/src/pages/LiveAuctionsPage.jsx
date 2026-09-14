@@ -1,9 +1,4 @@
-// src/pages/LiveAuctionsPage.jsx
-// "View Current Auctions" destination (Navbar) — every live auction across
-// every category in one place, not scoped to a single category like
-// CategoryPage.jsx. Sorted soonest-ending-first so the auctions closest to
-// closing (the ones most worth a buyer's attention right now) show up top.
-
+//navbar View Current auction link
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatPrice } from "../data/mockAuctions";

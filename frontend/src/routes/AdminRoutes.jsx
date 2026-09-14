@@ -113,10 +113,6 @@ import ProfilePage from "../pages/ProfilePage";
 import { useAuthStore } from "../store/useAuthStore";
 
 function AdminGuard() {
-  // Uncomment when real login sets isAuthenticated + user.role/is_admin:
-  // const { isAuthenticated, user } = useAuthStore();
-  // if (!isAuthenticated) return <Navigate to="/" replace />;
-  // if (!user?.is_admin && user?.role !== "admin") return <Navigate to="/" replace />;
   
   const {user } =useAuthStore();
   if (!user) {
@@ -128,10 +124,6 @@ function AdminGuard() {
   }
 
   return <Outlet />;
-  // const { isAuthenticated, user } = useAuthStore();
-  // if (!isAuthenticated) return <Navigate to="/" replace />;
-  // if (!user?.is_admin && user?.role !== "admin") return <Navigate to="/" replace />;
-  // return <Outlet />;
 }
 
 export default function AdminRoutes() {

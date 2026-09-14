@@ -1,4 +1,3 @@
-// src/utils/getErrorMessage.js
 // FastAPI returns `detail` as a plain string for HTTPException(detail="...")
 // but as an ARRAY of {type, loc, msg, input} objects for 422 validation
 // errors (e.g. a missing/malformed field). Rendering that array directly

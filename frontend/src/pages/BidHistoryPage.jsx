@@ -39,7 +39,8 @@ const AUCTION_STATUS_STYLE = {
 const PAYMENT_STYLE = {
   paid: "text-emerald-700 bg-emerald-50",
   "awaiting payment": "text-amber-700 bg-amber-50",
-  overdue: "text-rose-700 bg-rose-50",
+  "payment overdue — cascaded to next bidder": "text-rose-700 bg-rose-50",
+  "sale failed": "text-rose-800 bg-rose-100",
 };
 
 const FILTERS = ["All", "Live", "Won", "Lost", "Payment Due"];
@@ -49,7 +50,7 @@ function matchesFilter(bid, filter) {
   if (filter === "Live") return bid.status === "live";
   if (filter === "Won") return bid.my_role_in_outcome === "won" || bid.my_role_in_outcome === "cascade_winner";
   if (filter === "Lost") return bid.my_role_in_outcome === "lost" || bid.my_role_in_outcome === "forfeited";
-  if (filter === "Payment Due") return bid.payment_status === "awaiting payment" || bid.payment_status === "overdue";
+  if (filter === "Payment Due") return bid.payment_status === "awaiting payment" || bid.payment_status === "payment overdue — cascaded to next bidder";
   return true;
 }
 
@@ -110,7 +111,7 @@ export default function BidHistoryPage() {
   ).length;
   const liveCount = myBids.filter((b) => b.status === "live").length;
   const paymentDueCount = myBids.filter(
-    (b) => b.payment_status === "awaiting payment" || b.payment_status === "overdue"
+    (b) => b.payment_status === "awaiting payment" || b.payment_status === "payment overdue — cascaded to next bidder"
   ).length;
 
   return (
@@ -194,7 +195,7 @@ export default function BidHistoryPage() {
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-xs text-slate-400 capitalize">{b.category}</span>
                       <span
-                        className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 capitalize ${
+                        className={`text-[10px] font-bold tracking-wider px-1.5 py-0.5 capitalize ${
                           AUCTION_STATUS_STYLE[b.status] ?? "text-slate-500 bg-slate-100"
                         }`}
                       >

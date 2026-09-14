@@ -1,4 +1,4 @@
-// Live via WebSocket now (see hooks/useNotificationSocket.js, connected
+// Live via WebSocket (see hooks/useNotificationSocket.js, connected
 // once app-wide from App.jsx) — this fetches the notification history
 // once on mount (GET /notifications/me), then relies on the shared store
 // for anything new pushed in real time. Covers: first_bid (seller), outbid

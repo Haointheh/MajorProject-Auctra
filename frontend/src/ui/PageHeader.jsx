@@ -1,6 +1,4 @@
-// src/ui/PageHeader.jsx
 // Reused in: CategoryPage, SellerOverview, SellerListings, AdminOverview, AdminKYC
-// Keeps all page headers visually consistent.
 // Props:
 //   eyebrow   string   small label above title (e.g. "Category")
 //   title     string

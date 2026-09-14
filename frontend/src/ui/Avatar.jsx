@@ -1,4 +1,3 @@
-// src/ui/Avatar.jsx
 // Reused in: UserMenu (navbar), BidFeed (bid rows), ProfilePage header
 // Props:
 //   name    string   generates initials automatically

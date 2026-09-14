@@ -1,7 +1,4 @@
-// src/pages/admin/AdminKYC.jsx
-// Lists pending KYC submissions, split into Seller / Bidder tabs so an
-// admin reviewing one role never sees the other role's documents mixed in.
-// Approve/Reject call the real endpoints:
+// Approve/Reject call the real endpoints: for KYC reviews
 //   GET   /kyc/pending
 //   PATCH /kyc/{id}/approve
 //   PATCH /kyc/{id}/reject
@@ -14,7 +11,7 @@ import { apiGetPendingKYc, apiApproveKYC, apiRejectKYC } from "../../api/admin";
 import { getErrorMessage } from "../../utils/getErrorMessage";
 
 // Uploaded KYC images are served by the backend's /uploads static mount —
-// point at the API origin, not the frontend dev server.
+// point at the API origin
 const BACKEND_URL = "http://localhost:8000";
 
 function KYCCard({ kyc, onApprove, onReject, busy }) {

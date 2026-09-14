@@ -1,7 +1,7 @@
 def get_admin_dashboard_data(db):
     from model import Auction, Bid, User, Collateral
     from services.auction_status import compute_status
-    from schemas.dashboard_schemas import BidHistoryEntry, AdminAuctionSummary, AdminDashboardResponse
+    from schemas.dashboard_schemas import BidHistoryEntry, AdminAuctionSummary, AdminDashboardResponse, BlockedUserEntry
     from services.seller_dashboard import compute_payment_status
 
     auctions = db.query(Auction).all()
@@ -74,4 +74,58 @@ def get_admin_dashboard_data(db):
             )
         )
 
-    return AdminDashboardResponse(all_auctions=all_auctions)
+    blocked = db.query(User).filter(User.is_blocked == True).all()
+    blocked_users = [
+        BlockedUserEntry(id=u.id, name=u.name, email=u.email, role=u.role)
+        for u in blocked
+    ]
+
+    return AdminDashboardResponse(all_auctions=all_auctions, blocked_users=blocked_users)
+
+
+def get_all_users_for_admin(db):
+    """
+    Returns every non-admin user (both bidders and sellers) with the fields
+    the admin 'All Users' table needs: KYC status, when they joined, whether
+    they're currently blocked, and their most recent risk score.
+
+    Risk scores live on RiskAssessment, which is recorded per-auction-entry
+    rather than per-user, so we use each user's most recent assessment as
+    their overall risk figure. Users who have never bid (so never triggered
+    a risk assessment) get risk_score=None — the frontend can render that
+    as "-", same as the KYC-pending user with no bids yet.
+    """
+    from model import User, RiskAssessment
+    from schemas.dashboard_schemas import AdminUserEntry
+
+    users = (
+        db.query(User)
+        .filter(User.role != "admin")
+        .order_by(User.created_at.desc())
+        .all()
+    )
+
+    all_users = []
+    for user in users:
+        latest_risk_assessment = (
+            db.query(RiskAssessment)
+            .filter(RiskAssessment.bidder_id == user.id)
+            .order_by(RiskAssessment.created_at.desc())
+            .first()
+        )
+        risk_score = latest_risk_assessment.final_risk_score if latest_risk_assessment else None
+
+        all_users.append(
+            AdminUserEntry(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                role=user.role,
+                kyc_status=user.kyc_status,
+                is_blocked=user.is_blocked,
+                created_at=user.created_at,
+                risk_score=risk_score,
+            )
+        )
+
+    return all_users

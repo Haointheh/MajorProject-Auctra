@@ -1,6 +1,7 @@
 // Renders popup notifications pushed over the websocket (see
 // useNotificationSocket + useNotificationStore). Mounted once in App.jsx,
 // inside <BrowserRouter> so useNavigate works, so it's visible regardless
+// of which page/layout is currently active.
 
 import { useNavigate } from "react-router-dom";
 import { useNotificationStore } from "../store/useNotificationStore";
@@ -16,8 +17,7 @@ export default function ToastContainer() {
   const handleClick = (toast) => {
     dismissToast(toast.toastId);
     if (toast.related_auction_id) {
-      // Route is /auctions/:category/:id — the notification only carries
-      // the id, same lookup NotificationBell already does for this.
+      // Route is /auctions/:category/:id — the notification only carries id
       apiGetAuction(toast.related_auction_id)
         .then((res) => {
           navigate(`/auctions/${res.data.category}/${toast.related_auction_id}`);

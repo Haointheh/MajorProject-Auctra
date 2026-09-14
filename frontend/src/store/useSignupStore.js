@@ -1,4 +1,3 @@
-// src/store/useSignupStore.js
 import { create } from "zustand";
 
 export const useSignupStore = create((set) => ({

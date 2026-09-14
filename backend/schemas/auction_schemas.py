@@ -53,6 +53,13 @@ class AuctionResponse(BaseModel):
     current_highest_bid: Optional[int] = None  # add this line
     estimated_collateral: Optional[int] = None  # required collateral, computed before deposit
 
+    # Needed by the frontend to know whether the current user owes payment,
+    # whether the auction has cascaded to a second bidder, and by when.
+    is_resolved: bool = False
+    is_cascaded: bool = False
+    payment_completed: bool = False
+    payment_due_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
 

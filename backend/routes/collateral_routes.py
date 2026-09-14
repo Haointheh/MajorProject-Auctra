@@ -2,18 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from model import User, Auction, Collateral, CollateralStatusEnum
+from model import User, Auction, Collateral, CollateralStatusEnum, RiskAssessment
 from auth import require_kyc_approved_bidder
 from services.auction_status import compute_status
 from collateral_utils import calculate_collateral_amount, generate_transaction_reference
+from services.ai_risk_audit import save_ai_risk_log
 from schemas.collateral_schemas import CollateralResponse, CollateralCreate, CollateralPreviewResponse
 
 router = APIRouter()
 
 
-# Kept from our earlier patch — backend dev's update didn't include this.
-# Lets the frontend check "did I already deposit?" on page load instead of
-# only finding out via a failed POST.
 @router.get("/auctions/{auction_id}/collateral/me", response_model=CollateralResponse)
 def get_my_collateral(
     auction_id: int,
@@ -36,6 +34,10 @@ def deposit_collateral(
     current_user: User = Depends(require_kyc_approved_bidder),
     db: Session = Depends(get_db),
 ):
+    # Step 0.5: global block check
+    if current_user.is_blocked:
+        raise HTTPException(status_code=403, detail="Your account has been blocked from participating in auctions")
+
     # Step 1: fetch the auction
     auction = db.query(Auction).filter(Auction.id == auction_id).first()
     if not auction:
@@ -57,42 +59,54 @@ def deposit_collateral(
     if existing:
         raise HTTPException(status_code=400, detail="You have already deposited collateral for this auction")
 
-    # Step 5: calculate amount (placeholder formula for now)
-    amount = calculate_collateral_amount(auction)
+    # Step 5: run the AI risk model to determine entry eligibility + required collateral
+    result = calculate_collateral_amount(auction, current_user.id, db)
 
-    # Step 6: create the Collateral row
+    assessment = RiskAssessment(
+        auction_id=auction_id,
+        bidder_id=current_user.id,
+        user_stage=result["user_stage"],
+        risk_tier=result["risk_tier"],
+        final_risk_score=(
+            round(result["final_risk_score"])
+            if result["final_risk_score"] is not None
+            else None
+        ),
+        entry_allowed=result["entry_allowed"],
+        collateral_amount=result["amount"],
+    )
+    db.add(assessment)
+    db.commit()
+
+    # Detailed audit trail (full XGBoost + Isolation Forest breakdown) —
+    # separate table from RiskAssessment above, see model.py's AIRiskLog.
+    # Best-effort: save_ai_risk_log() swallows its own failures, so a
+    # logging bug here can never block this deposit from going through.
+    save_ai_risk_log(
+        db,
+        user_id=current_user.id,
+        username=current_user.name,
+        auction_id=auction_id,
+        risk_result=result,
+    )
+
+    if not result["entry_allowed"] or result["amount"] is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Entry not allowed: this account has been flagged as high risk by the fraud detection model.",
+        )
+
+    # Step 6: create the collateral record
     new_collateral = Collateral(
         auction_id=auction_id,
         bidder_id=current_user.id,
-        amount=amount,
+        amount=result["amount"],
         status=CollateralStatusEnum.locked,
         payment_method=payload.payment_method,
-        transaction_reference=generate_transaction_reference()
+        transaction_reference=generate_transaction_reference(),
     )
     db.add(new_collateral)
     db.commit()
     db.refresh(new_collateral)
 
-    # Step 7: return response
     return new_collateral
-
-
-@router.get("/auctions/{auction_id}/collateral/preview", response_model=CollateralPreviewResponse)
-def preview_collateral(
-    auction_id: int,
-    current_user: User = Depends(require_kyc_approved_bidder),
-    db: Session = Depends(get_db),
-):
-    auction = db.query(Auction).filter(Auction.id == auction_id).first()
-    if not auction:
-        raise HTTPException(status_code=404, detail="Auction not found")
-
-    if auction.seller_id == current_user.id:
-        raise HTTPException(status_code=403, detail="You cannot preview collateral on your own auction")
-
-    if compute_status(auction) != "live":
-        raise HTTPException(status_code=400, detail="Collateral preview is only available for live auctions")
-
-    amount = calculate_collateral_amount(auction)
-
-    return {"auction_id": auction_id, "amount": amount}

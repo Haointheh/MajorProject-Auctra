@@ -1,6 +1,6 @@
 from database import SessionLocal
 from model import Auction
-from backend.services.auction_resolution import resolve_auction
+from services.auction_resolution import resolve_auction
 
 db = SessionLocal()
 

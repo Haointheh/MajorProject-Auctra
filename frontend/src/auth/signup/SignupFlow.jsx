@@ -2,12 +2,17 @@ import { useState } from "react";
 import SignupStep1 from "./SignupStep1";
 import SignupStepOTP from "./SignupStepOTP";
 import SignupStep2 from "./SignupStep2";
-import { apiRequestSignupOTP, apiVerifySignupOTP, apiResumeKYC, apiSubmitKYC } from "../../api/auth";
+import { apiRequestSignupOTP, apiVerifySignupOTP, apiCompleteSignup } from "../../api/auth";
 import { getErrorMessage } from "../../utils/getErrorMessage";
+import InfoModal from "../../ui/InfoModal";
 
 // 1 = basic info, "otp" = email verification, 2 = KYC documents.
-// The account isn't actually created until step "otp" succeeds — /signup/request
-// just emails a code and holds the details server-side for 10 minutes.
+// The account isn't created until step 2 (KYC) actually succeeds —
+// /signup/request just emails a code and holds the details server-side for
+// 10 minutes, and /signup/verify only confirms the code and hands back a
+// signup_pending token. Nothing is written to the users table until
+// /signup/complete creates the account and the KYC document together, in
+// one commit — so backing out anywhere before that leaves no trace at all.
 export default function SignupFlow({ onClose, switchToLogin }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -16,10 +21,14 @@ export default function SignupFlow({ onClose, switchToLogin }) {
   const [otpError, setOtpError] = useState(null);
   const [otp, setOtp] = useState("");
 
-  // Set once /signup/verify succeeds — used to fetch the kyc_pending token
-  // via /kyc/resume (verify creates the account but doesn't hand back a
-  // token itself).
+  // Set once /signup/verify succeeds — a signup_pending token authorizing
+  // the final /signup/complete call. No account exists yet at this point.
   const [kycPendingToken, setKycPendingToken] = useState(null);
+
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [signupError, setSignupError] = useState(null);
+  const [step2Error, setStep2Error] = useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -75,19 +84,13 @@ export default function SignupFlow({ onClose, switchToLogin }) {
     }
   };
 
-  // OTP step -> verify (this is what actually creates the account), then
-  // immediately fetch a kyc_pending token so step 2 can submit documents.
+  // OTP step -> verify only. No account exists yet — confirms the code and hands back a signup_pending token for the final step.
   const handleVerifyOtp = async () => {
     setOtpError(null);
     setLoading(true);
     try {
-      await apiVerifySignupOTP({ email: formData.email, otp });
-
-      const resumeRes = await apiResumeKYC({
-        email: formData.email,
-        password: formData.password,
-      });
-      setKycPendingToken(resumeRes.data.access_token);
+      const res = await apiVerifySignupOTP({ email: formData.email, otp });
+      setKycPendingToken(res.data.access_token);
       setStep(2);
     } catch (error) {
       setOtpError(getErrorMessage(error, "Invalid or expired code."));
@@ -106,6 +109,8 @@ export default function SignupFlow({ onClose, switchToLogin }) {
         password: formData.password,
         role: formData.role,
       });
+      setKycPendingToken(null);
+      setOtp("");
     } catch (error) {
       setOtpError(getErrorMessage(error, "Couldn't resend code."));
     } finally {
@@ -114,11 +119,47 @@ export default function SignupFlow({ onClose, switchToLogin }) {
   };
 
   const previousFromOtp = () => setStep(1);
-  const previousFromDocs = () => setStep("otp");
 
-  // Step 2 -> submit KYC documents using the token fetched after verify.
+  // Going back from the KYC step means the signup_pending token from verify
+  // is about to become unusable the moment they touch anything here again
+  // (re-verifying needs a fresh code) — so instead of silently letting them
+  // sit on a token that's about to stop working, clear it now and tell them
+  // plainly what to do next.
+  const previousFromDocs = () => {
+    setKycPendingToken(null);
+    setOtp("");
+    setOtpError("Please resend the verification code to continue.");
+    setStep("otp");
+  };
+
+  // Step 3 (KYC form) -> validate everything's filled in first (this step
+  // never checked before — the backend's raw 422 "field required" was
+  // leaking straight through to the confirmation step otherwise), then
+  // open the confirmation. The actual API call only happens once that's
+  // confirmed.
+  const requestSignup = () => {
+    if (
+      !formData.dob ||
+      !formData.address ||
+      !formData.documentType ||
+      !formData.documentId ||
+      !formData.frontImage ||
+      !formData.backImage
+    ) {
+      setStep2Error("Please fill in all fields and upload both images before continuing.");
+      return;
+    }
+    setStep2Error(null);
+    setSignupError(null);
+    setShowConfirmModal(true);
+  };
+
+  // Confirmation modal's primary action -> the actual final step. Creates
+  // the account and the KYC document together, using the signup_pending
+  // token from verify.
   const handleSignup = async () => {
     setLoading(true);
+    setSignupError(null);
     try {
       const kycForm = new FormData();
       kycForm.append("date_of_birth", formData.dob);
@@ -128,18 +169,20 @@ export default function SignupFlow({ onClose, switchToLogin }) {
       kycForm.append("front_image", formData.frontImage);
       kycForm.append("back_image", formData.backImage);
 
-      await apiSubmitKYC(kycForm, kycPendingToken);
+      await apiCompleteSignup(kycForm, kycPendingToken);
 
-      alert(
-        "Signup successful! Your documents have been submitted for review. " +
-          "You'll be able to log in once an admin approves your KYC."
-      );
-      switchToLogin?.();
+      setShowConfirmModal(false);
+      setShowSuccessModal(true);
     } catch (error) {
-      alert(getErrorMessage(error, "Signup failed"));
+      setSignupError(getErrorMessage(error, "Signup failed"));
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    switchToLogin?.();
   };
 
   if (step === 1) {
@@ -174,13 +217,38 @@ export default function SignupFlow({ onClose, switchToLogin }) {
   }
 
   return (
-    <SignupStep2
-      onClose={onClose}
-      previousStep={previousFromDocs}
-      formData={formData}
-      updateField={updateField}
-      handleSignup={handleSignup}
-      loading={loading}
-    />
+    <>
+      <SignupStep2
+        onClose={onClose}
+        previousStep={previousFromDocs}
+        formData={formData}
+        updateField={updateField}
+        onSubmitRequest={requestSignup}
+        loading={loading}
+        error={step2Error}
+      />
+
+      {showConfirmModal && (
+        <InfoModal
+          eyebrow="Confirm Signup"
+          message="Submit your details for identity verification? You won't be able to change them until an admin reviews your submission."
+          error={signupError}
+          primaryLabel={loading ? "Submitting…" : "Confirm & Submit"}
+          onPrimary={handleSignup}
+          secondaryLabel="Cancel"
+          onSecondary={() => { setShowConfirmModal(false); setSignupError(null); }}
+          disabled={loading}
+        />
+      )}
+
+      {showSuccessModal && (
+        <InfoModal
+          eyebrow="Signup Complete"
+          message="Your documents have been submitted for review. You'll be able to log in once an admin approves your KYC."
+          primaryLabel="Got it"
+          onPrimary={handleCloseSuccessModal}
+        />
+      )}
+    </>
   );
 }

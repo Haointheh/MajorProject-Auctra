@@ -1,4 +1,3 @@
-// src/utils/getRole.js
 // Single source of truth for mapping a backend User object to a frontend role.
 // Backend roles are "user" | "seller" | "admin" (see backend/model.py -> User.role).
 // The frontend labels "user" as "buyer" everywhere in the UI/copy.

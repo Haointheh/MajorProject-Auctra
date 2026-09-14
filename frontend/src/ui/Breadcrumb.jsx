@@ -1,4 +1,3 @@
-// src/ui/Breadcrumb.jsx
 // Reused in: AuctionDetailPage, SellerAuctionPage, AdminAuctionPage
 // Props:
 //   items  array of { label, onClick } — last item is current page (no click)

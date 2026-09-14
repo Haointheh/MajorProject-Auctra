@@ -1,6 +1,6 @@
 from database import SessionLocal
 from model import Auction
-from backend.services.payment_completion import complete_purchase
+from services.payment_completion import complete_purchase
 
 db = SessionLocal()
 

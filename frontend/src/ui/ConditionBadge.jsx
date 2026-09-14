@@ -1,4 +1,3 @@
-// src/ui/ConditionBadge.jsx
 // Reused in: AuctionDetailPage, LiveAuctionView, SellerListings, SellerAuctionPage
 // Props:
 //   condition  "excellent" | "good" | "fair" | "poor"

@@ -1,12 +1,10 @@
-// src/pages/seller/EditAuction.jsx
 // Edit an existing auction. Mirrors backend PATCH /auctions/{id}
 // (schemas.auction_schemas.AuctionUpdate) exactly — only title, description,
-// condition, start_time, and duration_days can be changed. base_price,
-// category, and images are fixed at creation and can't be edited here.
-// The backend also rejects this call once the auction is no longer
-// "scheduled" (status check in update_auction) — this page mirrors that
-// guard client-side so sellers aren't led into filling out a form that
-// will just 400 on submit.
+// condition, start_time, duration_value, and duration_unit can be changed.
+
+// base_price, category, and images are fixed at creation and can't be edited. backend restriction
+// The backend rejects this call once the auction is live — this page mirrors
+// that guard client-side so sellers aren't led into filling out a form that will just 400 on submit.
 
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -17,6 +15,7 @@ import EmptyState from "../../ui/EmptyState";
 import { apiGetAuction, apiUpdateAuction } from "../../api/auctions";
 
 const CONDITIONS = ["excellent", "good", "fair", "poor"];
+const DURATION_UNITS = ["minutes", "hours", "days"];
 
 // "2026-07-15T10:00:00" (or with a timezone offset) -> "2026-07-15T10:00"
 // for a <input type="datetime-local"> value.
@@ -28,12 +27,26 @@ function toDatetimeLocalValue(isoString) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function daysBetween(startIso, endIso) {
+// Picks the cleanest value/unit pair to pre-fill the form with, since the
+// backend only stores start_time/end_time — not which unit the auction was
+// originally created with. Prefers whole days, falls back to whole hours,
+// then minutes, so a 3-day auction shows "3 days" rather than "4320 minutes".
+function durationBetween(startIso, endIso) {
   const start = new Date(startIso);
   const end = new Date(endIso);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
-  const ms = end.getTime() - start.getTime();
-  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)));
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return { value: "", unit: "days" };
+  }
+
+  const totalMinutes = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60)));
+
+  if (totalMinutes % 1440 === 0) {
+    return { value: totalMinutes / 1440, unit: "days" };
+  }
+  if (totalMinutes % 60 === 0) {
+    return { value: totalMinutes / 60, unit: "hours" };
+  }
+  return { value: totalMinutes, unit: "minutes" };
 }
 
 export default function EditAuction() {
@@ -49,7 +62,8 @@ export default function EditAuction() {
     description: "",
     condition: "",
     start_time: "",
-    duration_days: "",
+    duration_value: "",
+    duration_unit: "days",
   });
 
   const [saving, setSaving] = useState(false);
@@ -64,12 +78,14 @@ export default function EditAuction() {
         if (cancelled) return;
         const a = res.data;
         setAuction(a);
+        const { value: durationValue, unit: durationUnit } = durationBetween(a.start_time, a.end_time);
         setForm({
           title: a.title ?? "",
           description: a.description ?? "",
           condition: a.condition ?? "",
           start_time: toDatetimeLocalValue(a.start_time),
-          duration_days: String(daysBetween(a.start_time, a.end_time)),
+          duration_value: String(durationValue),
+          duration_unit: durationUnit,
         });
       })
       .catch(() => {
@@ -91,8 +107,8 @@ export default function EditAuction() {
       return "Please fill in all required fields.";
     }
     if (!form.start_time) return "Please select a start time.";
-    if (!form.duration_days || Number(form.duration_days) <= 0) {
-      return "duration_days must be greater than 0.";
+    if (!form.duration_value || Number(form.duration_value) <= 0) {
+      return "Duration must be greater than 0.";
     }
     return null;
   };
@@ -115,7 +131,8 @@ export default function EditAuction() {
         // datetime-local value ("2026-07-15T10:00") passed through as-is —
         // same naive-datetime handling CreateAuction relies on.
         start_time: form.start_time,
-        duration_days: Number(form.duration_days),
+        duration_value: Number(form.duration_value),
+        duration_unit: form.duration_unit,
       });
       navigate(`/seller/dashboard/auctions/${id}`);
     } catch (err) {
@@ -240,15 +257,28 @@ export default function EditAuction() {
               value={form.start_time}
               onChange={(e) => updateField("start_time", e.target.value)}
             />
-            <Input
-              id="duration_days"
-              label="Duration (days)"
-              type="number"
-              min="1"
-              placeholder="7"
-              value={form.duration_days}
-              onChange={(e) => updateField("duration_days", e.target.value)}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                id="duration_value"
+                label="Duration"
+                type="number"
+                min="1"
+                placeholder="7"
+                value={form.duration_value}
+                onChange={(e) => updateField("duration_value", e.target.value)}
+              />
+              <Input
+                as="select"
+                id="duration_unit"
+                label="Unit"
+                value={form.duration_unit}
+                onChange={(e) => updateField("duration_unit", e.target.value)}
+              >
+                {DURATION_UNITS.map((u) => (
+                  <option key={u} value={u} className="capitalize">{u}</option>
+                ))}
+              </Input>
+            </div>
           </div>
 
           <div className="flex gap-3">

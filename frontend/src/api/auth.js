@@ -84,9 +84,12 @@ export const apiRequestSignupOTP = (data) =>
     role: data.role, // "user" | "seller"
   });
 
-// Step 2: verifying the OTP is what actually creates the User row.
-// Note: unlike the old /signup, this does NOT return an access token —
-// follow it with apiResumeKYC to get a kyc_pending token for /kyc/submit.
+// Step 2: confirms the OTP only — does NOT create the account (that's the
+// whole point of this flow: backing out of KYC after this step used to
+// leave a permanent, half-finished account with no way to complete or
+// restart it). Returns a short-lived "signup_pending" token; the account
+// only gets created once /signup/complete succeeds with valid KYC docs,
+// in one transaction with the KYCDocument row.
 export const apiVerifySignupOTP = ({ email, otp }) =>
   client.post("/signup/verify", { email, otp });
 
@@ -96,9 +99,22 @@ export const apiLogin = (data) =>
     password: data.password,
   });
 
+// Step 3 (final): creates the User AND the KYCDocument together. Must be
+// called with the signup_pending token from apiVerifySignupOTP — pass it
+// in explicitly, same pattern as apiSubmitKYC's kycPendingToken below.
+export const apiCompleteSignup = (formData, signupPendingToken) =>
+  client.post("/signup/complete", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      Authorization: `Bearer ${signupPendingToken}`,
+    },
+  });
+
 // KYC must be submitted with a short-lived "kyc_pending" token — pass it in
 // explicitly rather than relying on whatever is currently stored as the
-// logged-in session token.
+// logged-in session token. Used for the *resubmission* flow (rejected, or
+// resumed after an abandoned session) — see apiResumeKYC below — not for
+// first-time signup anymore, that's apiCompleteSignup now.
 export const apiSubmitKYC = (formData, kycPendingToken) =>
   client.post("/kyc/submit", formData, {
     headers: {
@@ -116,8 +132,7 @@ export const apiResumeKYC = (data) =>
     password: data.password,
   });
 
-// Fetches the user's own previous KYC submission (if any) so the
-// resubmission form can be pre-filled instead of starting blank.
+// Fetch the user's own previous KYC submission(if any) so the resubmission form can be pre-filled instead of starting blank.
 export const apiGetMyKYC = (kycPendingToken) =>
   client.get("/kyc/me", {
     headers: { Authorization: `Bearer ${kycPendingToken}` },

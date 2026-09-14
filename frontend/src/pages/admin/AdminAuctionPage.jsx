@@ -1,17 +1,3 @@
-// import React from 'react'
-
-// const AdminAuctionPage = () => {
-//   return (
-//     <div>AdminAuctionPage</div>
-//   )
-// }
-
-// export default AdminAuctionPage
-
-// src/pages/admin/AdminAuctionPage.jsx
-// Admin's view of any auction — full bidder names, fraud risk column.
-// Reuses LiveAuctionView (role="admin") same as seller/buyer pages.
-
 import { useParams, useNavigate } from "react-router-dom";
 import { getAuctionById } from "../../data/mockAuctions";
 import { MOCK_BIDS } from "../../data/mockBids";

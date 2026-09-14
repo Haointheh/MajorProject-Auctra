@@ -15,6 +15,11 @@ export default function SignupStepOTP({
     resending,
     error,
 }) {
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!loading && otp.length === 6) handleVerifyOtp();
+    };
+
     return (
         <div className="relative w-full max-w-xs sm:max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto bg-neutral1 p-6 sm:p-8 shadow-lg mx-4">
 
@@ -36,7 +41,7 @@ export default function SignupStepOTP({
                 </p>
             </div>
 
-            <div className="mt-8 space-y-5">
+            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
 
                 {error && (
                     <div className="border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-600">
@@ -65,6 +70,7 @@ export default function SignupStepOTP({
 
                 <div className="flex gap-4 pt-2">
                     <Button
+                        type="button"
                         onClick={previousStep}
                         variant="primaryBorder"
                         className="w-1/2"
@@ -74,7 +80,7 @@ export default function SignupStepOTP({
                     </Button>
 
                     <Button
-                        onClick={handleVerifyOtp}
+                        type="submit"
                         variant="secondary"
                         className="w-1/2"
                         disabled={loading || otp.length !== 6}
@@ -83,7 +89,7 @@ export default function SignupStepOTP({
                     </Button>
                 </div>
 
-            </div>
+            </form>
         </div>
     );
 }

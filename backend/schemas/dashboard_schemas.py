@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import List
 
 
 class BidHistoryEntry(BaseModel):
@@ -7,6 +8,14 @@ class BidHistoryEntry(BaseModel):
     bidder_name: str
     amount: float
     created_at: datetime
+
+
+class AuctionImageSummary(BaseModel):
+    id: int
+    image_path: str
+
+    class Config:
+        from_attributes = True
 
 
 class SellerAuctionSummary(BaseModel):
@@ -24,6 +33,7 @@ class SellerAuctionSummary(BaseModel):
     highest_bid_amount: float | None
     bid_history: list[BidHistoryEntry]
     payment_status: str
+    images: List[AuctionImageSummary] = []
 
 
 class SellerDashboardResponse(BaseModel):
@@ -77,6 +87,24 @@ class AdminAuctionSummary(BaseModel):
     payment_status: str
 
 
+class BlockedUserEntry(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: str
+
+
+class AdminUserEntry(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: str
+    kyc_status: str
+    is_blocked: bool
+    created_at: datetime
+    risk_score: int | None
+
+
 class AdminDashboardResponse(BaseModel):
     all_auctions: list[AdminAuctionSummary]
-
+    blocked_users: list[BlockedUserEntry]

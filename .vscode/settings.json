@@ -1,3 +1,6 @@
 {
-  "python.analysis.extraPaths": ["./backend/schemas"]
+  "python.analysis.extraPaths": [
+    "./backend/schemas",
+    "./ai"
+  ]
 }
