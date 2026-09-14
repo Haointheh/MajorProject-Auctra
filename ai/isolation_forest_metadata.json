@@ -1,0 +1,18 @@
+{
+  "threshold": 0.6114803972804356,
+  "feature_order": [
+    "Bidder_Tendency",
+    "Bidding_Ratio",
+    "Successive_Outbidding",
+    "Last_Bidding",
+    "Auction_Bids",
+    "Starting_Price_Average",
+    "Early_Bidding",
+    "Winning_Ratio",
+    "Auction_Duration"
+  ],
+  "score_min": 0.4212098471538565,
+  "score_max": 0.7231134404118165,
+  "test_roc_auc": 0.9919320941528115,
+  "test_pr_auc": 0.9085411732205647
+}

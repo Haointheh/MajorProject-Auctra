@@ -1,0 +1,372 @@
+import os
+from datetime import timedelta
+from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File, Query
+from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import List, Literal, Optional
+
+from database import get_db
+from model import User, Auction, AuctionImage, CategoryEnum, Bid, Collateral, CollateralStatusEnum, Notification
+from auth import require_approved_seller, get_current_user
+from file_validation import validate_and_read
+from schemas.auction_schemas import AuctionResponse, AuctionUpdate, AuctionImageResponse, CompletePurchaseRequest
+from services.auction_status import compute_status
+from services.payment_completion import complete_purchase
+from services.connection_manager import manager
+from collateral_utils import estimate_public_collateral
+from duration_utils import get_duration_timedelta
+
+from sqlalchemy import func, or_
+
+
+
+router = APIRouter()
+
+UPLOAD_DIR = "uploads/auctions"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+@router.get("/auctions", response_model=list[AuctionResponse])
+def list_auctions(search: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    query = db.query(Auction)
+
+    if search:
+        like_pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Auction.title.ilike(like_pattern),
+                Auction.description.ilike(like_pattern),
+            )
+        )
+
+    auctions = query.all()
+
+    results = []
+    for auction in auctions:
+        response = AuctionResponse.model_validate(auction)
+        response.status = compute_status(auction)
+        
+        current_highest = db.query(func.max(Bid.amount)).filter(Bid.auction_id == auction.id).scalar()
+        response.current_highest_bid = current_highest
+        response.estimated_collateral = estimate_public_collateral(auction)
+
+        results.append(response)
+
+    return results
+
+@router.get("/auctions/{auction_id}", response_model=AuctionResponse)
+def get_auction(auction_id: int, db: Session = Depends(get_db)):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    response = AuctionResponse.model_validate(auction)
+    response.status = compute_status(auction)
+
+    current_highest = db.query(func.max(Bid.amount)).filter(Bid.auction_id == auction_id).scalar()
+    response.current_highest_bid = current_highest
+    response.estimated_collateral = estimate_public_collateral(auction)
+
+    return response
+
+
+@router.post("/auctions", response_model=AuctionResponse)
+
+def create_auction(
+    title: str = Form(...),
+    description: str = Form(...),
+    category: CategoryEnum = Form(...),
+    condition: Literal["excellent", "good", "fair", "poor"] = Form(...),
+    base_price: int = Form(...),
+    start_time: datetime = Form(...),
+    duration_value: int = Form(...),
+    duration_unit: Literal["minutes", "hours", "days"] = Form(...),
+    images: List[UploadFile] = File(...),
+    current_user: User = Depends(require_approved_seller),
+    db: Session = Depends(get_db),
+):
+    # --- Validation that doesn't fit naturally into Form()/Pydantic ---
+    if base_price <= 0:
+        raise HTTPException(status_code=400, detail="base_price must be greater than 0")
+
+    if duration_value <= 0:
+        raise HTTPException(status_code=400, detail="duration_value must be greater than 0")
+
+    if len(images) < 1 or len(images) > 5:
+        raise HTTPException(status_code=400, detail="An auction must have between 1 and 5 images")
+
+    # --- Compute end_time from start_time + duration ---
+    end_time = start_time + get_duration_timedelta(duration_value, duration_unit)
+
+    # --- Validate all images BEFORE creating anything in the DB ---
+    validated_images = []
+    for image in images:
+        contents = validate_and_read(image)
+        validated_images.append((image, contents))
+
+    # --- Create the Auction row first, so it gets an id ---
+    new_auction = Auction(
+        seller_id=current_user.id,
+        title=title,
+        description=description,
+        category=category,
+        condition=condition,
+        base_price=base_price,
+        start_time=start_time,
+        end_time=end_time,
+        status="scheduled",
+    )
+    db.add(new_auction)
+    db.commit()
+    db.refresh(new_auction)
+
+    # --- Now save image files to disk and create AuctionImage rows ---
+    for index, (image, contents) in enumerate(validated_images, start=1):
+        ext = os.path.splitext(image.filename)[1]
+        image_path = os.path.join(UPLOAD_DIR, f"{new_auction.id}_{index}{ext}")
+
+        with open(image_path, "wb") as f:
+            f.write(contents)
+
+        db_image = AuctionImage(auction_id=new_auction.id, image_path=image_path)
+        db.add(db_image)
+
+    db.commit()
+    db.refresh(new_auction)
+
+    response = AuctionResponse.model_validate(new_auction)
+    response.status = compute_status(new_auction)
+    return response
+
+@router.patch("/auctions/{auction_id}", response_model=AuctionResponse)
+def update_auction(
+    auction_id: int,
+    payload: AuctionUpdate,
+    current_user: User = Depends(require_approved_seller),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    if auction.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own auctions")
+
+    if compute_status(auction) != "scheduled":
+        raise HTTPException(status_code=400, detail="Auction can only be edited while status is 'scheduled'")
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if ("duration_value" in update_data) != ("duration_unit" in update_data):
+        raise HTTPException(
+            status_code=400,
+            detail="duration_value and duration_unit must be provided together",
+        )
+
+    current_duration = auction.end_time - auction.start_time
+    new_start_time = update_data.get("start_time", auction.start_time)
+
+    if "duration_value" in update_data:
+        new_duration = get_duration_timedelta(update_data["duration_value"], update_data["duration_unit"])
+    else:
+        new_duration = current_duration
+
+    if "title" in update_data:
+        auction.title = update_data["title"]
+    if "description" in update_data:
+        auction.description = update_data["description"]
+    if "condition" in update_data:
+        auction.condition = update_data["condition"]
+
+    auction.start_time = new_start_time
+    auction.end_time = new_start_time + new_duration
+
+    db.commit()
+    db.refresh(auction)
+
+    response = AuctionResponse.model_validate(auction)
+    response.status = compute_status(auction)
+    return response
+
+@router.post("/auctions/{auction_id}/images", response_model=List[AuctionImageResponse])
+def add_auction_images(
+    auction_id: int,
+    images: List[UploadFile] = File(...),
+    current_user: User = Depends(require_approved_seller),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    if auction.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own auctions")
+
+    if compute_status(auction) != "scheduled":
+        raise HTTPException(status_code=400, detail="Images can only be changed while status is 'scheduled'")
+
+    existing_count = db.query(AuctionImage).filter(AuctionImage.auction_id == auction_id).count()
+
+    if len(images) < 1:
+        raise HTTPException(status_code=400, detail="No images provided")
+
+    if existing_count + len(images) > 5:
+        raise HTTPException(status_code=400, detail="An auction must have between 1 and 5 images")
+
+    # --- Validate all images BEFORE writing anything to disk/DB ---
+    validated_images = []
+    for image in images:
+        contents = validate_and_read(image)
+        validated_images.append((image, contents))
+
+    new_rows = []
+    for index, (image, contents) in enumerate(validated_images, start=existing_count + 1):
+        ext = os.path.splitext(image.filename)[1]
+        image_path = os.path.join(UPLOAD_DIR, f"{auction.id}_{index}{ext}")
+
+        with open(image_path, "wb") as f:
+            f.write(contents)
+
+        db_image = AuctionImage(auction_id=auction.id, image_path=image_path)
+        db.add(db_image)
+        new_rows.append(db_image)
+
+    db.commit()
+    for row in new_rows:
+        db.refresh(row)
+
+    return db.query(AuctionImage).filter(AuctionImage.auction_id == auction_id).all()
+
+
+@router.delete("/auctions/{auction_id}/images/{image_id}")
+def delete_auction_image(
+    auction_id: int,
+    image_id: int,
+    current_user: User = Depends(require_approved_seller),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    if auction.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own auctions")
+
+    if compute_status(auction) != "scheduled":
+        raise HTTPException(status_code=400, detail="Images can only be changed while status is 'scheduled'")
+
+    image = db.query(AuctionImage).filter(
+        AuctionImage.id == image_id,
+        AuctionImage.auction_id == auction_id,
+    ).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    remaining_count = db.query(AuctionImage).filter(AuctionImage.auction_id == auction_id).count()
+    if remaining_count <= 1:
+        raise HTTPException(status_code=400, detail="An auction must have at least 1 image")
+
+    image_path = image.image_path
+    db.delete(image)
+    db.commit()
+
+    if os.path.exists(image_path):
+        os.remove(image_path)
+
+    return {"message": f"Image {image_id} deleted."}
+
+
+@router.delete("/auctions/{auction_id}")
+def delete_auction(
+    auction_id: int,
+    current_user: User = Depends(require_approved_seller),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    if auction.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete your own auctions")
+
+    if compute_status(auction) != "scheduled":
+        raise HTTPException(status_code=400, detail="Auction can only be cancelled while status is 'scheduled'")
+
+    auction.status = "cancelled"
+    db.commit()
+
+    return {"message": f"Auction {auction_id} has been cancelled."}
+
+@router.post("/auctions/{auction_id}/complete-purchase")
+async def complete_purchase_route(
+    auction_id: int,
+    payload: CompletePurchaseRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    auction = db.query(Auction).filter(Auction.id == auction_id).first()
+    if not auction:
+        raise HTTPException(status_code=404, detail="Auction not found")
+
+    bids_query = db.query(Bid).filter(Bid.auction_id == auction_id).order_by(Bid.amount.desc())
+
+    if auction.is_cascaded:
+        active_bid = bids_query.offset(1).first()
+    else:
+        active_bid = bids_query.first()
+
+    if not active_bid:
+        raise HTTPException(status_code=400, detail="No eligible bid found for this auction")
+
+    if active_bid.bidder_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the current eligible bidder can complete this purchase")
+
+    try:
+        result = complete_purchase(
+            auction=auction,
+            payment_method=payload.payment_method,
+            transaction_reference=payload.transaction_reference,
+            db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Notify the seller that payment has been completed
+    payment_notification = Notification(
+        user_id=auction.seller_id,
+        message=f"Payment for Auction #{auction.id} has been completed. Amount paid: {result['amount_paid']}.",
+        notification_type="payment_completed",
+        related_auction_id=auction.id,
+    )
+    db.add(payment_notification)
+
+    db.commit()
+
+    # Push it live
+    db.refresh(payment_notification)
+    await manager.send_to_user(auction.seller_id, {
+        "id": payment_notification.id,
+        "notification_type": payment_notification.notification_type,
+        "message": payment_notification.message,
+        "related_auction_id": payment_notification.related_auction_id,
+        "created_at": payment_notification.created_at.isoformat(),
+    })
+
+    # Payment status just changed on the admin dashboard too.
+    await manager.broadcast_to_admins({
+        "type": "dashboard_refresh",
+        "reason": "payment_completed",
+        "auction_id": auction.id,
+    })
+
+    # Same reasoning as process_payment_deadlines in main.py: payment_completed
+    # flipping doesn't change compute_status()'s scheduled/live/ended string,
+    # so reuse "status_changed" to get anyone watching this auction's page
+    # (buyer, seller) to refetch and see the payment section disappear.
+    await manager.broadcast_to_room(auction.id, {
+        "type": "status_changed",
+        "auction_id": auction.id,
+        "new_status": "ended",
+    })
+
+    return result

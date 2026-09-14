@@ -1,0 +1,13 @@
+react
+install tailwindcss
+npm install @fontsource/jost react-icons
+
+npm install react-router-dom
+
+
+npm install clsx
+npm install zustand
+npm install axios
+
+
+test
